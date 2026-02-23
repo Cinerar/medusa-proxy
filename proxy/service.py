@@ -31,12 +31,11 @@ class Service:
 
     @property
     def pid(self):
-        if self.PID is None:
-            try:
-                with open(self.pid_file, "rt") as file:
-                    self.PID = int(file.read().strip())
-            except FileNotFoundError:
-                pass
+        try:
+            with open(self.pid_file, "rt") as file:
+                self.PID = int(file.read().strip())
+        except (FileNotFoundError, ValueError):
+            self.PID = None
 
         return self.PID
 
@@ -45,8 +44,12 @@ class Service:
         return f"/var/lib/{self.name}"
 
     def kill(self, signal):
+        pid = self.pid
+        if pid is None:
+            return
+
         try:
-            os.kill(self.pid, signal)
+            os.kill(pid, signal)
         except ProcessLookupError:
             # End up here if process doesn't exist (Tor has exited already?).
             pass
@@ -66,4 +69,5 @@ class Service:
 
     def restart(self):
         self.stop()
+        self.PID = None
         self.start()

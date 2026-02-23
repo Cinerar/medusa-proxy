@@ -25,6 +25,7 @@ RUN apk --no-cache --no-progress add \
     haproxy \
     lyrebird=~0.7 \
     privoxy \
+    tini \
     tor && \
     rm -rf /var/cache/apk/*
 
@@ -40,4 +41,5 @@ EXPOSE 1080 2090 8800 8888
 
 ENV PATH="/.venv/bin:$PATH"
 
+ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["python3", "/start.py"]

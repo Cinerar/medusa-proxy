@@ -2,6 +2,7 @@
 
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -16,6 +17,20 @@ PROXY_LIST_PY = "proxy-list.py"
 HEADS = int(os.environ.get("HEADS", 1))
 PROXY_CHECK_INTERVAL = os.environ.get("PROXY_CHECK_INTERVAL", "15m")
 TORS = int(os.environ.get("TORS", 5))
+
+
+def reap_children(*_):
+    """Reap any exited child process so PID 1 does not accumulate zombies."""
+    while True:
+        try:
+            pid, _ = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            # No child processes.
+            break
+
+        if pid == 0:
+            # Child processes still running, nothing to reap right now.
+            break
 
 
 def get_versions():
@@ -42,6 +57,8 @@ def parse_time_interval(time_str):
 
 
 def main():
+    signal.signal(signal.SIGCHLD, reap_children)
+
     log.info("========================================")
     log.info(f"Medusa Proxy: {VERSION}")
     log.info("")

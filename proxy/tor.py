@@ -130,7 +130,8 @@ class Tor(Service):
                 ]
                 location = " | ".join(location)
 
-        log.info(f"port {self.port}: {ip:>15} | PID {self.pid:>4}" + location)
+        pid = self.pid if self.pid is not None else "----"
+        log.info(f"port {self.port}: {ip:>15} | PID {pid:>4}" + location)
 
         return result
 
