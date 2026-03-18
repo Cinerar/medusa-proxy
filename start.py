@@ -8,7 +8,7 @@ import sys
 import time
 
 from config import VERSION, parse_time_interval
-from config import HEADS, TORS, PROXY_CHECK_INTERVAL, PROXY_ROTATE_INTERVAL
+from config import HEADS, TORS, PROXY_CHECK_INTERVAL, PROXY_ROTATE_INTERVAL, PROXY_STARTUP_TIMEOUT
 from proxy import Privoxy, log
 
 PROXY_LIST_TXT = "proxy-list.txt"
@@ -56,6 +56,7 @@ def main():
     log.info(f"  TORS: {TORS}")
     log.info(f"  PROXY_CHECK_INTERVAL: {PROXY_CHECK_INTERVAL}")
     log.info(f"  PROXY_ROTATE_INTERVAL: {PROXY_ROTATE_INTERVAL}")
+    log.info(f"  PROXY_STARTUP_TIMEOUT: {PROXY_STARTUP_TIMEOUT}")
     log.info("")
 
     # Create Privoxy instances with Tor backends
@@ -64,6 +65,35 @@ def main():
     # Parse intervals
     check_interval = parse_time_interval(PROXY_CHECK_INTERVAL).total_seconds()
     rotate_interval = parse_time_interval(PROXY_ROTATE_INTERVAL).total_seconds()
+    startup_timeout = parse_time_interval(PROXY_STARTUP_TIMEOUT).total_seconds()
+
+    # Wait for at least one Tor instance to become available
+    log.info("Waiting for Tor instances to bootstrap...")
+    startup_check_interval = 10  # Check every 10 seconds
+    start_time = time.time()
+
+    while time.time() - start_time < startup_timeout:
+        # Check if any Tor instance is working
+        any_working = False
+        for instance in privoxy_instances:
+            for tor_proxy in instance.haproxy.proxies:
+                if tor_proxy.working:
+                    any_working = True
+                    break
+            if any_working:
+                break
+
+        if any_working:
+            log.info("At least one Tor instance is ready. Starting main loop.")
+            break
+
+        elapsed = time.time() - start_time
+        remaining = startup_timeout - elapsed
+        log.debug(f"  No Tor instances ready yet. Waiting... ({remaining:.0f}s remaining)")
+        time.sleep(startup_check_interval)
+    else:
+        log.warning(f"Startup timeout ({PROXY_STARTUP_TIMEOUT}) reached. Starting main loop anyway.")
+        log.warning("Health check will attempt to restart non-working Tor instances.")
 
     log.info("Writing proxy list.")
     with open(PROXY_LIST_TXT, "wt") as file:
