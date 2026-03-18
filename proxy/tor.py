@@ -12,7 +12,7 @@ CONFIG_PATH = "/etc/tor/torrc"
 
 # Number of seconds to wait when checking if a proxy is working.
 #
-WORKING_TIMEOUT = 5
+WORKING_TIMEOUT = 10
 
 
 class Tor(Service):
