@@ -7,16 +7,12 @@ import subprocess
 import sys
 import time
 
-from config import VERSION
-from datetime import timedelta
+from config import VERSION, parse_time_interval
+from config import HEADS, TORS, PROXY_CHECK_INTERVAL, PROXY_ROTATE_INTERVAL
 from proxy import Privoxy, log
 
 PROXY_LIST_TXT = "proxy-list.txt"
 PROXY_LIST_PY = "proxy-list.py"
-
-HEADS = int(os.environ.get("HEADS", 1))
-PROXY_CHECK_INTERVAL = os.environ.get("PROXY_CHECK_INTERVAL", "15m")
-TORS = int(os.environ.get("TORS", 5))
 
 
 def reap_children(*_):
@@ -45,17 +41,6 @@ def get_versions():
         log.info("- " + version)
 
 
-def parse_time_interval(time_str):
-    default_timedelta = timedelta(minutes=15)
-    if time_str.endswith("s"):
-        return timedelta(seconds=int(time_str[:-1]))
-    elif time_str.endswith("m"):
-        return timedelta(minutes=int(time_str[:-1]))
-    elif time_str.endswith("h"):
-        return timedelta(hours=int(time_str[:-1]))
-    return default_timedelta
-
-
 def main():
     signal.signal(signal.SIGCHLD, reap_children)
 
@@ -65,32 +50,62 @@ def main():
     get_versions()
     log.info("========================================")
 
-    privoxy = [Privoxy(TORS, i) for i in range(HEADS)]
-    sleep_time = parse_time_interval(PROXY_CHECK_INTERVAL).total_seconds()
+    # Log configuration
+    log.info("Configuration:")
+    log.info(f"  HEADS: {HEADS}")
+    log.info(f"  TORS: {TORS}")
+    log.info(f"  PROXY_CHECK_INTERVAL: {PROXY_CHECK_INTERVAL}")
+    log.info(f"  PROXY_ROTATE_INTERVAL: {PROXY_ROTATE_INTERVAL}")
+    log.info("")
+
+    # Create Privoxy instances with Tor backends
+    privoxy_instances = [Privoxy(TORS, i) for i in range(HEADS)]
+
+    # Parse intervals
+    check_interval = parse_time_interval(PROXY_CHECK_INTERVAL).total_seconds()
+    rotate_interval = parse_time_interval(PROXY_ROTATE_INTERVAL).total_seconds()
 
     log.info("Writing proxy list.")
     with open(PROXY_LIST_TXT, "wt") as file:
-        for http in privoxy:
+        for http in privoxy_instances:
             file.write("http://127.0.0.1:%d\n" % http.port)
     log.info("Done.")
 
     log.info("Serving proxy list.")
     os.spawnl(os.P_NOWAIT, sys.executable, sys.executable, PROXY_LIST_PY)
 
+    # Track last rotation time
+    last_rotation = time.time()
+
+    # Main event loop
     while True:
-        for i in range(HEADS):
-            log.info("Testing proxies.")
-            for http in privoxy:
-                log.info(f"* Privoxy {http.id}")
-                socks = http.haproxy
-                for proxy in socks.proxies:
-                    if not proxy.working:
-                        log.warning("Restarting.")
-                        proxy.restart()
-            log.info(f"Sleeping for {PROXY_CHECK_INTERVAL}.")
-            time.sleep(sleep_time)
-        for http in privoxy:
-            http.cycle()
+        # Health check phase
+        log.info("Testing proxies.")
+        for instance in privoxy_instances:
+            log.info(f"* Privoxy {instance.id}")
+            haproxy = instance.haproxy
+            for tor_proxy in haproxy.proxies:
+                if not tor_proxy.working:
+                    log.warning(f"  Restarting Tor on port {tor_proxy.port}.")
+                    tor_proxy.restart()
+
+        # Check if rotation is needed
+        current_time = time.time()
+        time_since_rotation = current_time - last_rotation
+
+        if time_since_rotation >= rotate_interval:
+            log.info(f"Rotating Tor circuits (interval: {PROXY_ROTATE_INTERVAL}).")
+            for instance in privoxy_instances:
+                instance.rotate_circuits()
+            last_rotation = current_time
+            log.info("Rotation complete.")
+        else:
+            remaining = rotate_interval - time_since_rotation
+            log.debug(f"Next rotation in {remaining:.0f} seconds.")
+
+        # Sleep until next health check
+        log.info(f"Sleeping for {PROXY_CHECK_INTERVAL}.")
+        time.sleep(check_interval)
 
 
 try:

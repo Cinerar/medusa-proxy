@@ -6,6 +6,8 @@ services:
     environment:
       - HEADS=2
       - TORS=5
+      - PROXY_CHECK_INTERVAL=15m
+      - PROXY_ROTATE_INTERVAL=1h
       - TOR_EXITNODES={de}
       - TOR_BRIDGES="Bridge obfs4 148.252.111.70:9040 F4462199499EF2D3E9F7A686D8AE71C50E1CB5E0 cert=57ypxWpn24PhWqKbUAqYRhIXX7uPk1Uo6m/mslymxcl6D6yTb6CjoLIJ96IfwIGOXXa+cw iat-mode=0"
 
