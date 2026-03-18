@@ -3,6 +3,7 @@ import jinja2
 from .service import Service
 from .haproxy import Haproxy
 from .tor import Tor
+from . import log
 
 
 class Privoxy(Service):
@@ -31,9 +32,16 @@ class Privoxy(Service):
             self.config,
         )
 
-    def cycle(self):
-        for proxy in self.haproxy.proxies:
-            proxy.cycle()
+    def rotate_circuits(self):
+        """
+        Rotate Tor circuits for all backend proxies.
+
+        This sends SIGHUP to each Tor process, causing them to build new circuits
+        with different exit nodes. Used for changing IP addresses periodically.
+        """
+        log.info(f"Privoxy {self.id}: Rotating {len(self.haproxy.proxies)} Tor circuits.")
+        for tor_proxy in self.haproxy.proxies:
+            tor_proxy.rotate_circuit()
 
     def stop(self):
         self.haproxy.stop()

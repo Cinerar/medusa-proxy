@@ -149,6 +149,12 @@ class Tor(Service):
             f"--PidFile {self.pid_file}",
         )
 
-    def cycle(self):
-        log.debug(f"Requesting new exit node (port {self.port}).")
+    def rotate_circuit(self):
+        """
+        Request a new Tor circuit by sending SIGHUP signal.
+
+        This causes Tor to build a new circuit with a different exit node,
+        resulting in a different IP address being used for outgoing connections.
+        """
+        log.info(f"Rotating circuit for Tor instance on port {self.port}.")
         self.kill(SIGHUP)
