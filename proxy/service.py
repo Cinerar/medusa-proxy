@@ -57,7 +57,8 @@ class Service:
     def run(self, *args):
         command = " ".join(args)
         log.debug(f"Running: {command}.")
-        os.system(command)
+        # Redirect stdout/stderr to suppress output from external processes
+        os.system(f"{command} > /dev/null 2>&1")
 
     def stop(self):
         try:
