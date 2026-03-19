@@ -66,3 +66,13 @@ PROXY_STARTUP_TIMEOUT = os.environ.get("PROXY_STARTUP_TIMEOUT", "2m")
 
 # Tor exit node countries (comma-separated country codes)
 TOR_EXIT_NODES = os.environ.get("TOR_EXIT_NODES", "")
+
+# ============================================================================
+# UI Configuration
+# ============================================================================
+
+# UI mode: "none" (legacy), "status" (single line), "full" (split screen)
+UI_MODE = os.environ.get("UI_MODE", "full")
+
+# UI refresh interval in seconds (for TTY mode)
+UI_REFRESH_INTERVAL = int(os.environ.get("UI_REFRESH_INTERVAL", "1"))
