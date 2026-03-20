@@ -26,10 +26,14 @@ Privoxy exposes an HTTP proxy.
 - `HAPROXY_LOGIN` — Username for HAProxy (default: `admin`).
 - `HAPROXY_PASSWORD` — Password for HAProxy (default: `admin`).
 - `HEADS` — Number of Privoxy instances (default: `1`).
-- `PROXY_CHECK_INTERVAL` — Represents the interval at which the proxy checks/rotations are performed (default: `15m`).
+- `PROXY_CHECK_INTERVAL` — Interval at which health checks are performed (default: `15m`).
+- `PROXY_ROTATE_INTERVAL` — Interval at which Tor circuits are rotated (default: `1h`).
 - `TORS` — Number of Tor instances (default: `5`).
 - `TOR_BRIDGES` — Bridge multiline string with bridges records (default: `""`).
 - `TOR_EXIT_NODES` — Tor exit nodes config (default: `""`, for example `TOR_EXIT_NODES=ru` or `TOR_EXIT_NODES=ru,en`).
+- `PROXY_STARTUP_TIMEOUT` — Maximum time to wait for at least one Tor instance to become available (default: `2m`).
+- `UI_MODE` — UI display mode: `none` (legacy), `status` (single line), `full` (split screen) (default: `full`).
+- `UI_REFRESH_INTERVAL` — UI refresh interval in seconds for TTY mode (default: `1`).
 
 ## Tor Bridges
 
@@ -68,8 +72,8 @@ docker pull datawookie/medusa-proxy:latest
 
 # Start docker container
 docker run --rm --name medusa-proxy -e TORS=3 -e HEADS=2 \
-    -p 8888:8888 -p 8889:8889 \
-    -p 1080:1080 -p 1081:1081 \
+    -p 8888:8888 \
+    -p 1080:1080 \
     -p 2090:2090 \
     datawookie/medusa-proxy
 
