@@ -3,21 +3,35 @@ services:
     image: datawookie/medusa-proxy
     build: .
 
+    # Enable TTY for split-screen UI (like htop)
+    tty: true
+
     environment:
-      - HEADS=2
-      - TORS=5
-      - PROXY_CHECK_INTERVAL=15m
-      - PROXY_ROTATE_INTERVAL=1h
-      - PROXY_STARTUP_TIMEOUT=2m
-      - TOR_EXITNODES={de}
-      - TOR_BRIDGES="Bridge obfs4 148.252.111.70:9040 F4462199499EF2D3E9F7A686D8AE71C50E1CB5E0 cert=57ypxWpn24PhWqKbUAqYRhIXX7uPk1Uo6m/mslymxcl6D6yTb6CjoLIJ96IfwIGOXXa+cw iat-mode=0"
+    # Number of Privoxy instances (HTTP proxy endpoints)
+    - HEADS=2
+    # Number of Tor instances per Privoxy
+    - TORS=5
+    # How often to check if Tor instances are working
+    - PROXY_CHECK_INTERVAL=15m
+    # How often to rotate Tor circuits (change IP addresses)
+    - PROXY_ROTATE_INTERVAL=1h
+    # Maximum time to wait for at least one Tor instance to become available
+    - PROXY_STARTUP_TIMEOUT=2m
+    # Comma-separated country codes for Tor exit nodes
+    - TOR_EXITNODES={de}
+    # Tor bridge configuration (optional, for censorship circumvention)
+    - TOR_BRIDGES="Bridge obfs4 148.252.111.70:9040 F4462199499EF2D3E9F7A686D8AE71C50E1CB5E0 cert=57ypxWpn24PhWqKbUAqYRhIXX7uPk1Uo6m/mslymxcl6D6yTb6CjoLIJ96IfwIGOXXa+cw iat-mode=0"
+    # UI mode: "none" (legacy), "status" (single line), "full" (split screen)
+    - UI_MODE=full
+    # UI refresh interval in seconds (for TTY mode, default: 1)
+    # - UI_REFRESH_INTERVAL=1
 
     container_name: medusa-proxy
     volumes:
-      - ./bridges.lst:/bridges.lst:ro
+    - ./bridges.lst:/bridges.lst:ro
     restart: no
     ports:
-      - '8888:8888'
-      - '1080:1080'
-      - '2090:2090'
-      - '8800:8800'
+    - '8888:8888'
+    - '1080:1080'
+    - '2090:2090'
+    - '8800:8800'
