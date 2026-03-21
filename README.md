@@ -94,3 +94,49 @@ chromium --proxy-server="http://localhost:8888" \
 #
 http://localhost:2090 or http://admin:admin@localhost:2090
 ```
+
+## Split Terminal UI
+
+Medusa Proxy features a split-terminal UI (similar to `htop`) for real-time monitoring of Tor instances. The UI displays:
+
+- **Header**: Version, uptime, instance counts, next rotation time
+- **Status Table**: Port, status, IP, country, city, uptime, latency
+- **Log Panel**: Last 20 log messages
+
+### Running with Full UI
+
+To use the split-terminal UI, you need to allocate a TTY. Use one of these methods:
+
+```bash
+# Using docker compose (recommended)
+docker compose run --rm -it --service-ports medusa-proxy
+
+# Using docker run
+docker run --rm -it -e UI_MODE=full \
+    -p 8888:8888 -p 1080:1080 -p 2090:2090 \
+    datawookie/medusa-proxy
+
+# Using docker compose with explicit TTY
+# Add 'tty: true' to your docker-compose.yaml and run:
+docker compose up
+```
+
+### UI Modes
+
+- `UI_MODE=none` — Legacy output (no UI)
+- `UI_MODE=status` — Single-line status display
+- `UI_MODE=full` — Split-screen UI with status table and logs (default)
+
+### UI Controls
+
+- Press `Ctrl+C` to exit (terminal will be restored automatically)
+
+### Liveness Monitoring
+
+The UI includes a liveness checker that verifies each working Tor instance can reach a target URL (default: `https://api.telegram.org`). This helps identify instances that are "working" but blocked by the target service.
+
+Liveness parameters:
+- `PROXY_LIVENESS_INTERVAL` — How often to check (default: `30s`)
+- `PROXY_LIVENESS_URL` — URL to test (default: `https://api.telegram.org`)
+- `PROXY_LIVENESS_TIMEOUT` — Request timeout in seconds (default: `10`)
+- `PROXY_LIVENESS_JITTER` — Random delay percentage to avoid predictable patterns (default: `20`)
