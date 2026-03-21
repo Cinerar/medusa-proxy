@@ -128,9 +128,9 @@ def main():
                             if new_status.status == "working":
                                 log.info(f"[ErrorChecker] Port {tor_proxy.port} is now WORKING!")
                             else:
-                                log.warning(f"[ErrorChecker] Port {tor_proxy.port} is {new_status.status}")
+                                log.warning(f"[ErrorChecker] Port {tor_proxy.port} health check failed: {new_status.status} (IP: {new_status.ip or 'N/A'})")
                         else:
-                            log.warning(f"[ErrorChecker] Port {tor_proxy.port} is still {quick_status.status}")
+                            log.warning(f"[ErrorChecker] Port {tor_proxy.port} process not running (PID: {tor_proxy.pid or 'N/A'})")
 
                         # Render UI to show updated status
                         if ui:
