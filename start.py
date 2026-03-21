@@ -146,8 +146,6 @@ def main():
             if not liveness_checker_running:
                 break
 
-            log.info(f"[LivenessChecker] Checking {PROXY_LIVENESS_URL} accessibility...")
-
             # Check all WORKING Tor instances
             for instance in privoxy_instances:
                 for tor_proxy in instance.haproxy.proxies:
@@ -155,12 +153,13 @@ def main():
 
                     # Only check working instances
                     if cached_status and cached_status.status == "working":
+                        log.info(f"[LivenessChecker] Checking port {tor_proxy.port} -> {PROXY_LIVENESS_URL}")
                         success, error_msg = tor_proxy.check_liveness(
                             PROXY_LIVENESS_URL, PROXY_LIVENESS_TIMEOUT
                         )
 
                         if success:
-                            log.debug(f"[LivenessChecker] Port {tor_proxy.port} - OK")
+                            log.info(f"[LivenessChecker] Port {tor_proxy.port} - OK")
                         else:
                             log.warning(f"[LivenessChecker] Port {tor_proxy.port} - FAILED: {error_msg}")
                             log.warning(f"[LivenessChecker] Restarting Tor on port {tor_proxy.port}")
