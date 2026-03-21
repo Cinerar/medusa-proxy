@@ -11,7 +11,7 @@ import time
 from config import VERSION, parse_time_interval
 from config import HEADS, TORS, PROXY_CHECK_INTERVAL, PROXY_ROTATE_INTERVAL, PROXY_STARTUP_TIMEOUT
 from config import UI_MODE, UI_REFRESH_INTERVAL
-from config import PROXY_LIVENESS_INTERVAL, PROXY_LIVENESS_URL, PROXY_LIVENESS_TIMEOUT
+from config import PROXY_LIVENESS_INTERVAL, PROXY_LIVENESS_URL, PROXY_LIVENESS_TIMEOUT, PROXY_LIVENESS_JITTER
 from proxy import Privoxy, log
 from proxy.log import suppress_console_output, set_log_callback
 from proxy.status import StatusManager, TorStatus
@@ -141,8 +141,12 @@ def main():
 
     def liveness_checker_thread():
         """Background thread to check if working Tor instances can reach target URL."""
+        import random
         while liveness_checker_running:
-            time.sleep(liveness_interval)
+            # Calculate sleep with jitter to avoid predictable patterns
+            jitter_seconds = liveness_interval * (PROXY_LIVENESS_JITTER / 100.0)
+            actual_sleep = liveness_interval + random.uniform(0, jitter_seconds)
+            time.sleep(actual_sleep)
             if not liveness_checker_running:
                 break
 

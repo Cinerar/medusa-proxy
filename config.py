@@ -83,6 +83,12 @@ PROXY_LIVENESS_URL = os.environ.get("PROXY_LIVENESS_URL", "https://api.telegram.
 # Default: 10 seconds
 PROXY_LIVENESS_TIMEOUT = int(os.environ.get("PROXY_LIVENESS_TIMEOUT", "10"))
 
+# Jitter percentage to add randomness to liveness check interval
+# This prevents all Tor instances from checking at the same time
+# Example: 20% jitter on 30s interval means actual interval is 30-36 seconds
+# Default: 20 percent
+PROXY_LIVENESS_JITTER = int(os.environ.get("PROXY_LIVENESS_JITTER", "20"))
+
 # ============================================================================
 # UI Configuration
 # ============================================================================
