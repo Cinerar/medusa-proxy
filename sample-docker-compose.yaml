@@ -25,6 +25,12 @@ services:
     - UI_MODE=full
     # UI refresh interval in seconds (for TTY mode, default: 1)
     # - UI_REFRESH_INTERVAL=1
+    # How often to check if working Tor instances can reach the target URL
+    # - PROXY_LIVENESS_INTERVAL=30s
+    # URL to check for liveness (must be reachable through Tor)
+    # - PROXY_LIVENESS_URL=https://api.telegram.org
+    # Timeout for liveness check requests in seconds
+    # - PROXY_LIVENESS_TIMEOUT=10
 
     container_name: medusa-proxy
     volumes:

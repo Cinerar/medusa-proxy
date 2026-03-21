@@ -68,6 +68,22 @@ PROXY_STARTUP_TIMEOUT = os.environ.get("PROXY_STARTUP_TIMEOUT", "2m")
 TOR_EXIT_NODES = os.environ.get("TOR_EXIT_NODES", "")
 
 # ============================================================================
+# Liveness Check Configuration
+# ============================================================================
+
+# How often to check if Tor instances can reach the target URL
+# Default: 30 seconds (30s)
+PROXY_LIVENESS_INTERVAL = os.environ.get("PROXY_LIVENESS_INTERVAL", "30s")
+
+# URL to check for liveness (must be reachable through Tor)
+# Default: Telegram API (common use case for Tor proxies)
+PROXY_LIVENESS_URL = os.environ.get("PROXY_LIVENESS_URL", "https://api.telegram.org")
+
+# Timeout for liveness check requests in seconds
+# Default: 10 seconds
+PROXY_LIVENESS_TIMEOUT = int(os.environ.get("PROXY_LIVENESS_TIMEOUT", "10"))
+
+# ============================================================================
 # UI Configuration
 # ============================================================================
 

@@ -266,3 +266,43 @@ class Tor(Service):
         self.kill(SIGHUP)
         # Record rotation time for circuit age tracking
         self._last_rotation_time = time.time()
+
+    def check_liveness(self, test_url: str, timeout: int = 10) -> tuple[bool, str]:
+        """
+        Check if this Tor instance can reach a specific URL.
+
+        This is used to verify that the proxy can access external services
+        like Telegram API, which may block certain Tor exit nodes.
+
+        Args:
+            test_url: URL to test (e.g., "https://api.telegram.org")
+            timeout: Request timeout in seconds
+
+        Returns:
+            tuple[bool, str]: (success, error_message)
+                - success: True if URL is reachable
+                - error_message: Error description if failed, empty string if success
+        """
+        proxies = {
+            "http": f"socks5://127.0.0.1:{self.port}",
+            "https": f"socks5://127.0.0.1:{self.port}",
+        }
+
+        try:
+            response = requests.get(
+                test_url,
+                proxies=proxies,
+                timeout=timeout,
+                allow_redirects=True,
+            )
+            # Consider 2xx and 3xx responses as success
+            if response.status_code < 400:
+                return True, ""
+            else:
+                return False, f"HTTP {response.status_code}"
+        except requests.exceptions.ConnectionError as e:
+            return False, f"Connection error: {str(e)[:50]}"
+        except requests.exceptions.Timeout:
+            return False, f"Timeout after {timeout}s"
+        except requests.exceptions.RequestException as e:
+            return False, f"Request failed: {str(e)[:50]}"

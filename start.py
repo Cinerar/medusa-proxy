@@ -11,6 +11,7 @@ import time
 from config import VERSION, parse_time_interval
 from config import HEADS, TORS, PROXY_CHECK_INTERVAL, PROXY_ROTATE_INTERVAL, PROXY_STARTUP_TIMEOUT
 from config import UI_MODE, UI_REFRESH_INTERVAL
+from config import PROXY_LIVENESS_INTERVAL, PROXY_LIVENESS_URL, PROXY_LIVENESS_TIMEOUT
 from proxy import Privoxy, log
 from proxy.log import suppress_console_output, set_log_callback
 from proxy.status import StatusManager, TorStatus
@@ -81,6 +82,8 @@ def main():
     log.info(f" PROXY_CHECK_INTERVAL: {PROXY_CHECK_INTERVAL}")
     log.info(f" PROXY_ROTATE_INTERVAL: {PROXY_ROTATE_INTERVAL}")
     log.info(f" PROXY_STARTUP_TIMEOUT: {PROXY_STARTUP_TIMEOUT}")
+    log.info(f" PROXY_LIVENESS_INTERVAL: {PROXY_LIVENESS_INTERVAL}")
+    log.info(f" PROXY_LIVENESS_URL: {PROXY_LIVENESS_URL}")
     log.info(f" UI_MODE: {UI_MODE}")
     log.info("")
 
@@ -91,10 +94,11 @@ def main():
     check_interval = parse_time_interval(PROXY_CHECK_INTERVAL).total_seconds()
     rotate_interval = parse_time_interval(PROXY_ROTATE_INTERVAL).total_seconds()
     startup_timeout = parse_time_interval(PROXY_STARTUP_TIMEOUT).total_seconds()
+    liveness_interval = parse_time_interval(PROXY_LIVENESS_INTERVAL).total_seconds()
 
     # Error instance checker thread (will be started after startup)
-    error_check_interval = 30  # Check error instances every 30 seconds
-    error_checker_running = False  # Will be set to True after startup
+    error_check_interval = 30 # Check error instances every 30 seconds
+    error_checker_running = False # Will be set to True after startup
 
     def error_checker_thread():
         """Background thread to check error instances more frequently."""
@@ -131,8 +135,81 @@ def main():
                         # Render UI to show updated status
                         if ui:
                             ui.render()
-
-    # Wait for at least one Tor instance to become available
+                
+                    # Liveness checker thread (will be started after startup)
+                    liveness_checker_running = False  # Will be set to True after startup
+                
+                    def liveness_checker_thread():
+                        """Background thread to check if working Tor instances can reach target URL."""
+                        while liveness_checker_running:
+                            time.sleep(liveness_interval)
+                            if not liveness_checker_running:
+                                break
+                
+                            log.info(f"[LivenessChecker] Checking {PROXY_LIVENESS_URL} accessibility...")
+                
+                            # Check all WORKING Tor instances
+                            for instance in privoxy_instances:
+                                for tor_proxy in instance.haproxy.proxies:
+                                    cached_status = status_manager.cache.get(tor_proxy.port)
+                
+                                    # Only check working instances
+                                    if cached_status and cached_status.status == "working":
+                                        success, error_msg = tor_proxy.check_liveness(
+                                            PROXY_LIVENESS_URL, PROXY_LIVENESS_TIMEOUT
+                                        )
+                
+                                        if success:
+                                            log.debug(f"[LivenessChecker] Port {tor_proxy.port} - OK")
+                                        else:
+                                            log.warning(f"[LivenessChecker] Port {tor_proxy.port} - FAILED: {error_msg}")
+                                            log.warning(f"[LivenessChecker] Restarting Tor on port {tor_proxy.port}")
+                
+                                            # Set restarting status
+                                            from proxy.status import TorStatus
+                                            restarting_status = TorStatus(
+                                                port=tor_proxy.port,
+                                                status="restarting",
+                                                pid=tor_proxy.pid or 0,
+                                            )
+                                            status_manager.update_from_health_check(tor_proxy.port, restarting_status)
+                
+                                            # Render UI to show restarting status
+                                            if ui:
+                                                ui.render()
+                
+                                            # Perform the restart
+                                            tor_proxy.restart()
+                
+                                            # Wait a moment for Tor to start
+                                            time.sleep(2)
+                
+                                            # Check if process is running
+                                            quick_status = tor_proxy.get_quick_status()
+                                            status_manager.update_from_health_check(tor_proxy.port, quick_status)
+                
+                                            # Render UI to show new status
+                                            if ui:
+                                                ui.render()
+                
+                                            # If process is running, do a full health check
+                                            if quick_status.status == "online":
+                                                time.sleep(3)  # Wait for bootstrap
+                                                new_status = tor_proxy.get_status()
+                                                status_manager.update_from_health_check(tor_proxy.port, new_status)
+                
+                                                if new_status.status == "working":
+                                                    log.info(f"[LivenessChecker] Port {tor_proxy.port} is now WORKING!")
+                                                else:
+                                                    log.warning(f"[LivenessChecker] Port {tor_proxy.port} is {new_status.status}")
+                
+                                                if ui:
+                                                    ui.render()
+                
+                                        # Small delay between instances to avoid peak load
+                                        time.sleep(0.5)
+                
+                    # Wait for at least one Tor instance to become available
     log.info("Waiting for Tor instances to bootstrap...")
     startup_check_interval = 10 # Check every 10 seconds
     start_time = time.time()
@@ -184,6 +261,12 @@ def main():
     error_checker = threading.Thread(target=error_checker_thread, daemon=True)
     error_checker.start()
     log.info("Error checker thread started (checking every 30s).")
+
+    # Start liveness checker thread (now that startup is complete)
+    liveness_checker_running = True
+    liveness_checker = threading.Thread(target=liveness_checker_thread, daemon=True)
+    liveness_checker.start()
+    log.info(f"Liveness checker thread started (checking {PROXY_LIVENESS_URL} every {PROXY_LIVENESS_INTERVAL}).")
 
     # Main event loop
     while True:
