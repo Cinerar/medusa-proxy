@@ -16,13 +16,14 @@ class TorStatus:
     """Tracks status for a single Tor instance."""
 
     port: int
-    status: str = "checking" # "working", "error", "checking"
+    status: str = "checking"  # "working", "error", "checking"
     ip: str = "---"
-    location: Dict = field(default_factory=dict) # {country, city, lat, lon}
-    uptime: float = 0.0 # seconds since instance became working
-    working_since: Optional[float] = None # timestamp when instance became working
+    location: Dict = field(default_factory=dict)  # {country, city, lat, lon}
+    uptime: float = 0.0  # seconds since instance became working
+    working_since: Optional[float] = None  # timestamp when instance became working
     last_check: Optional[datetime] = None
     pid: int = 0
+    liveness_ms: float = 0.0  # response time in milliseconds from liveness check
 
     @property
     def status_icon(self) -> str:

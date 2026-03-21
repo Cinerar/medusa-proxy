@@ -158,7 +158,7 @@ class SplitTerminalUI:
 
         # Table header (row 3)
         output.append(ANSI.move(row, 1) + ANSI.CLEAR_LINE + ANSI.BOLD +
-            f"{'Port':>6} {'Status':<10} {'IP':>15} {'Country':<15} {'City':<15} {'Uptime':>10}" +
+            f"{'Port':>6} {'Status':<10} {'IP':>15} {'Country':<15} {'City':<15} {'Uptime':>10} {'Latency':>8}" +
             ANSI.RESET)
         row += 1
 
@@ -250,13 +250,20 @@ class SplitTerminalUI:
         else:
             uptime_str = "---"
 
+        # Format liveness response time
+        if status.liveness_ms > 0:
+            liveness_str = f"{status.liveness_ms:.0f}ms"
+        else:
+            liveness_str = "---"
+
         return (
             f"{status.port:>6} "
             f"{color}{status.status_icon} {status.status.upper():<8}{ANSI.RESET} "
             f"{status.ip:>15} "
             f"{country:<15} "
             f"{city:<15} "
-            f"{uptime_str:>10}"
+            f"{uptime_str:>10} "
+            f"{liveness_str:>8}"
         )
 
     def _render_log_line(self, message: str) -> str:

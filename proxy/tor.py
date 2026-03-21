@@ -267,7 +267,7 @@ class Tor(Service):
         # Record rotation time for circuit age tracking
         self._last_rotation_time = time.time()
 
-    def check_liveness(self, test_url: str, timeout: int = 10) -> tuple[bool, str]:
+    def check_liveness(self, test_url: str, timeout: int = 10) -> tuple[bool, str, float]:
         """
         Check if this Tor instance can reach a specific URL.
 
@@ -279,15 +279,17 @@ class Tor(Service):
             timeout: Request timeout in seconds
 
         Returns:
-            tuple[bool, str]: (success, error_message)
+            tuple[bool, str, float]: (success, error_message, response_time_ms)
                 - success: True if URL is reachable
                 - error_message: Error description if failed, empty string if success
+                - response_time_ms: Response time in milliseconds (0 if failed)
         """
         proxies = {
             "http": f"socks5://127.0.0.1:{self.port}",
             "https": f"socks5://127.0.0.1:{self.port}",
         }
 
+        start_time = time.time()
         try:
             response = requests.get(
                 test_url,
@@ -295,14 +297,15 @@ class Tor(Service):
                 timeout=timeout,
                 allow_redirects=True,
             )
+            elapsed_ms = (time.time() - start_time) * 1000
             # Consider 2xx and 3xx responses as success
             if response.status_code < 400:
-                return True, ""
+                return True, "", elapsed_ms
             else:
-                return False, f"HTTP {response.status_code}"
+                return False, f"HTTP {response.status_code}", 0
         except requests.exceptions.ConnectionError as e:
-            return False, f"Connection error: {str(e)[:50]}"
+            return False, f"Connection error: {str(e)[:50]}", 0
         except requests.exceptions.Timeout:
-            return False, f"Timeout after {timeout}s"
+            return False, f"Timeout after {timeout}s", 0
         except requests.exceptions.RequestException as e:
-            return False, f"Request failed: {str(e)[:50]}"
+            return False, f"Request failed: {str(e)[:50]}", 0

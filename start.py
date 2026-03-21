@@ -154,12 +154,19 @@ def main():
                     # Only check working instances
                     if cached_status and cached_status.status == "working":
                         log.info(f"[LivenessChecker] Checking port {tor_proxy.port} -> {PROXY_LIVENESS_URL}")
-                        success, error_msg = tor_proxy.check_liveness(
+                        success, error_msg, response_ms = tor_proxy.check_liveness(
                             PROXY_LIVENESS_URL, PROXY_LIVENESS_TIMEOUT
                         )
-
+    
+                        # Update liveness_ms in cached status
+                        if cached_status.liveness_ms != response_ms:
+                            cached_status.liveness_ms = response_ms
+                            status_manager.update_from_health_check(tor_proxy.port, cached_status)
+                            if ui:
+                                ui.render()
+    
                         if success:
-                            log.info(f"[LivenessChecker] Port {tor_proxy.port} - OK")
+                            log.info(f"[LivenessChecker] Port {tor_proxy.port} - OK ({response_ms:.0f}ms)")
                         else:
                             log.warning(f"[LivenessChecker] Port {tor_proxy.port} - FAILED: {error_msg}")
                             log.warning(f"[LivenessChecker] Restarting Tor on port {tor_proxy.port}")
