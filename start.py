@@ -163,8 +163,8 @@ def main():
                         else:
                             log.warning(f"[LivenessChecker] Port {tor_proxy.port} - FAILED: {error_msg}")
                             log.warning(f"[LivenessChecker] Restarting Tor on port {tor_proxy.port}")
-
-                            # Set restarting status
+        
+                            # Set restarting status BEFORE restart
                             from proxy.status import TorStatus
                             restarting_status = TorStatus(
                                 port=tor_proxy.port,
@@ -172,11 +172,15 @@ def main():
                                 pid=tor_proxy.pid or 0,
                             )
                             status_manager.update_from_health_check(tor_proxy.port, restarting_status)
-
+        
                             # Render UI to show restarting status
                             if ui:
                                 ui.render()
-
+        
+                            # Reset working tracking since we're restarting
+                            tor_proxy._working_since = 0.0
+                            tor_proxy._was_working = False
+        
                             # Perform the restart
                             tor_proxy.restart()
 
