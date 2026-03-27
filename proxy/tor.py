@@ -4,9 +4,12 @@ import requests
 from signal import SIGHUP
 from pathlib import Path
 import os
+import time
+from datetime import datetime
 
 from . import log
 from .service import Service
+from .status import TorStatus
 
 CONFIG_PATH = "/etc/tor/torrc"
 
@@ -33,6 +36,10 @@ class Tor(Service):
         self.new_circuit_period = new_circuit_period or 120
         self.max_circuit_dirtiness = max_circuit_dirtiness or 600
         self.circuit_build_timeout = circuit_build_timeout or 60
+
+        # Track uptime (time since instance became working)
+        self._working_since: float = 0.0  # timestamp when instance became working
+        self._was_working: bool = False  # track previous working state
 
         with open("templates/tor.cfg", "rt") as file:
             template = jinja2.Template(file.read())
@@ -76,11 +83,33 @@ class Tor(Service):
         self.start()
 
     @property
-    def working(self):
+    def uptime(self) -> float:
+        """Get uptime in seconds since the instance became working."""
+        if self._working_since == 0.0:
+            return 0.0
+        return time.time() - self._working_since
+
+    def get_status(self) -> TorStatus:
+        """
+        Check if the Tor instance is working and return a TorStatus object.
+
+        This method performs the health check and returns detailed status
+        information for the UI display.
+
+        Returns:
+            TorStatus: Current status of the Tor instance
+        """
         proxies = {
             "http": f"socks5://127.0.0.1:{self.port}",
             "https": f"socks5://127.0.0.1:{self.port}",
         }
+
+        status = TorStatus(
+            port=self.port,
+            status="checking",
+            pid=self.pid or 0,
+            last_check=datetime.now(),
+        )
 
         # Get IP.
         #
@@ -91,28 +120,42 @@ class Tor(Service):
                 timeout=WORKING_TIMEOUT,
             )
             ip = json.loads(response.text.strip())["ip"]
-            result = True
+            status.ip = ip
+            status.status = "working"
         except (
             KeyError,
             json.decoder.JSONDecodeError,
             requests.exceptions.ConnectionError,
             requests.exceptions.ReadTimeout,
         ):
-            ip = "---"
-            result = False
+            status.ip = "---"
+            status.status = "error"
 
-        location = ""
+        # Track when instance became working
+        if status.status == "working" and not self._was_working:
+            # Just became working, record the time
+            self._working_since = time.time()
+            self._was_working = True
+        elif status.status != "working":
+            # No longer working, reset tracking
+            self._working_since = 0.0
+            self._was_working = False
+
+        # Set uptime for working instances
+        if status.status == "working":
+            status.uptime = self.uptime
+            status.working_since = self._working_since
+
+        # Get IP location if working
         #
-        if result:
-            # Get IP location.
-            #
+        if status.status == "working":
             try:
                 response = requests.get(
-                    f"http://ip-api.com/json/{ip}",
+                    f"http://ip-api.com/json/{status.ip}",
                     proxies=proxies,
                     timeout=WORKING_TIMEOUT,
                 )
-                location = response.json()
+                status.location = response.json()
             except (
                 json.decoder.JSONDecodeError,
                 requests.exceptions.ConnectTimeout,
@@ -120,20 +163,83 @@ class Tor(Service):
                 requests.exceptions.ConnectionError,
             ):
                 log.warning("🚨 Failed to get location.")
+                status.location = {}
 
-            if location:
-                location = [
-                    "",
-                    f"{location['country']:15}",
-                    f"{location['city']:18}",
-                    f"{location['lat']:+6.2f} / {location['lon']:+7.2f}",
-                ]
-                location = " | ".join(location)
+        # Log the status
+        if status.location:
+            location_str = [
+                "",
+                f"{status.location['country']:15}",
+                f"{status.location['city']:18}",
+                f"{status.location['lat']:+6.2f} / {status.location['lon']:+7.2f}",
+            ]
+            location_str = " | ".join(location_str)
+        else:
+            location_str = ""
 
-        pid = self.pid if self.pid is not None else "----"
-        log.info(f"port {self.port}: {ip:>15} | PID {pid:>4}" + location)
+        pid_str = status.pid if status.pid else "----"
+        log.info(f"port {status.port}: {status.ip:>15} | PID {pid_str:>4}" + location_str)
 
-        return result
+        return status
+
+    def is_process_running(self) -> bool:
+        """
+        Check if the Tor process is running by verifying PID.
+
+        Returns:
+            bool: True if the process is running, False otherwise
+        """
+        pid = self.pid
+        if pid is None:
+            return False
+        try:
+            # Send signal 0 to check if process exists
+            import os
+            os.kill(pid, 0)
+            return True
+        except (ProcessLookupError, PermissionError, OSError):
+            return False
+
+    def get_quick_status(self) -> TorStatus:
+        """
+        Get a quick status check without network requests.
+
+        This checks if the process is running but doesn't verify
+        if Tor is actually functional. Use get_status() for full check.
+
+        Returns:
+            TorStatus: Current status with 'online' or 'offline' status
+        """
+        status = TorStatus(
+            port=self.port,
+            pid=self.pid or 0,
+            last_check=datetime.now(),
+        )
+
+        if self.is_process_running():
+            status.status = "online"
+            # Preserve working_since if we have it
+            if self._working_since:
+                status.working_since = self._working_since
+                status.uptime = time.time() - self._working_since
+        else:
+            status.status = "offline"
+
+        return status
+
+    @property
+    def working(self) -> bool:
+        """
+        Check if the Tor instance is working.
+
+        This property is kept for backward compatibility.
+        Use get_status() for detailed status information.
+
+        Returns:
+            bool: True if the Tor instance is working, False otherwise
+        """
+        status = self.get_status()
+        return status.status == "working"
 
     @property
     def data_directory(self):
@@ -158,3 +264,48 @@ class Tor(Service):
         """
         log.info(f"Rotating circuit for Tor instance on port {self.port}.")
         self.kill(SIGHUP)
+        # Record rotation time for circuit age tracking
+        self._last_rotation_time = time.time()
+
+    def check_liveness(self, test_url: str, timeout: int = 10) -> tuple[bool, str, float]:
+        """
+        Check if this Tor instance can reach a specific URL.
+
+        This is used to verify that the proxy can access external services
+        like Telegram API, which may block certain Tor exit nodes.
+
+        Args:
+            test_url: URL to test (e.g., "https://api.telegram.org")
+            timeout: Request timeout in seconds
+
+        Returns:
+            tuple[bool, str, float]: (success, error_message, response_time_ms)
+                - success: True if URL is reachable
+                - error_message: Error description if failed, empty string if success
+                - response_time_ms: Response time in milliseconds (0 if failed)
+        """
+        proxies = {
+            "http": f"socks5://127.0.0.1:{self.port}",
+            "https": f"socks5://127.0.0.1:{self.port}",
+        }
+
+        start_time = time.time()
+        try:
+            response = requests.get(
+                test_url,
+                proxies=proxies,
+                timeout=timeout,
+                allow_redirects=True,
+            )
+            elapsed_ms = (time.time() - start_time) * 1000
+            # Consider 2xx and 3xx responses as success
+            if response.status_code < 400:
+                return True, "", elapsed_ms
+            else:
+                return False, f"HTTP {response.status_code}", 0
+        except requests.exceptions.ConnectionError as e:
+            return False, f"Connection error: {str(e)[:50]}", 0
+        except requests.exceptions.Timeout:
+            return False, f"Timeout after {timeout}s", 0
+        except requests.exceptions.RequestException as e:
+            return False, f"Request failed: {str(e)[:50]}", 0

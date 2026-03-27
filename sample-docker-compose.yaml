@@ -3,21 +3,59 @@ services:
     image: datawookie/medusa-proxy
     build: .
 
+    # Enable TTY for split-screen UI (like htop)
+    tty: true
+
     environment:
-      - HEADS=2
-      - TORS=5
-      - PROXY_CHECK_INTERVAL=15m
-      - PROXY_ROTATE_INTERVAL=1h
-      - PROXY_STARTUP_TIMEOUT=2m
-      - TOR_EXITNODES={de}
-      - TOR_BRIDGES="Bridge obfs4 148.252.111.70:9040 F4462199499EF2D3E9F7A686D8AE71C50E1CB5E0 cert=57ypxWpn24PhWqKbUAqYRhIXX7uPk1Uo6m/mslymxcl6D6yTb6CjoLIJ96IfwIGOXXa+cw iat-mode=0"
+    # Number of Privoxy instances (HTTP proxy endpoints)
+    - HEADS=2
+    # Number of Tor instances per Privoxy
+    - TORS=5
+    # How often to check if Tor instances are working
+    - PROXY_CHECK_INTERVAL=15m
+    # How often to rotate Tor circuits (change IP addresses)
+    - PROXY_ROTATE_INTERVAL=1h
+    # Maximum time to wait for at least one Tor instance to become available
+    - PROXY_STARTUP_TIMEOUT=2m
+    # Comma-separated country codes for Tor exit nodes
+    - TOR_EXITNODES={de}
+    # Tor bridge configuration (optional, for censorship circumvention)
+    - TOR_BRIDGES="Bridge obfs4 148.252.111.70:9040 F4462199499EF2D3E9F7A686D8AE71C50E1CB5E0 cert=57ypxWpn24PhWqKbUAqYRhIXX7uPk1Uo6m/mslymxcl6D6yTb6CjoLIJ96IfwIGOXXa+cw iat-mode=0"
+    # UI mode: "none" (legacy), "status" (single line), "full" (split screen)
+    - UI_MODE=full
+    # UI refresh interval in seconds (for TTY mode, default: 1)
+    # - UI_REFRESH_INTERVAL=1
+    # How often to check if working Tor instances can reach the target URL
+    - PROXY_LIVENESS_INTERVAL=30s
+    # URL to check for liveness (must be reachable through Tor)
+    - PROXY_LIVENESS_URL=https://api.telegram.org
+    # Timeout for liveness check requests in seconds
+    - PROXY_LIVENESS_TIMEOUT=10
+    # Jitter percentage to add randomness to liveness check interval (prevents predictable patterns)
+    - PROXY_LIVENESS_JITTER=20
+    # Enable individual HTTP proxy endpoints for each Tor instance (0=disabled, 1=enabled)
+    # When enabled, creates separate HTTP proxies on ports 8890, 8891, 8892, etc.
+    # Each individual proxy routes through a specific Tor instance for a fixed IP
+    # Useful when you need consistent IP addresses for specific tasks
+    - ENABLE_INDIVIDUAL_PROXIES=0
+    # Base port for individual proxy endpoints (default: 8890)
+    # Individual proxies will be created on ports: BASE_PORT, BASE_PORT+1, BASE_PORT+2, ...
+    # Example: 8890 -> Tor #1, 8891 -> Tor #2, 8892 -> Tor #3, etc.
+    - INDIVIDUAL_PROXY_BASE_PORT=8890
 
     container_name: medusa-proxy
     volumes:
-      - ./bridges.lst:/bridges.lst:ro
+    - ./bridges.lst:/bridges.lst:ro
     restart: no
     ports:
-      - '8888:8888'
-      - '1080:1080'
-      - '2090:2090'
-      - '8800:8800'
+    - '8888:8888'    # HTTP proxy (balanced across all Tor instances)
+    - '1080:1080'    # SOCKS proxy (HAProxy)
+    - '2090:2090'    # HAProxy stats
+    - '8800:8800'    # Proxy list HTTP server
+    # Individual proxy endpoints (only needed if ENABLE_INDIVIDUAL_PROXIES=1)
+    # Uncomment and adjust based on your TORS count
+    # - '8890:8890'  # Individual proxy -> Tor instance #1 (fixed IP)
+    # - '8891:8891'  # Individual proxy -> Tor instance #2 (fixed IP)
+    # - '8892:8892'  # Individual proxy -> Tor instance #3 (fixed IP)
+    # - '8893:8893'  # Individual proxy -> Tor instance #4 (fixed IP)
+    # - '8894:8894'  # Individual proxy -> Tor instance #5 (fixed IP)

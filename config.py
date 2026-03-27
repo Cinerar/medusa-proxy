@@ -1,14 +1,16 @@
 import os
 from datetime import timedelta
 
-VERSION = "0.3.2"
+VERSION = "0.5.0"
 
 # ============================================================================
 # Time Parsing Utilities
 # ============================================================================
 
 
-def parse_time_interval(time_str: str, default: timedelta = timedelta(minutes=15)) -> timedelta:
+def parse_time_interval(
+    time_str: str, default: timedelta = timedelta(minutes=15)
+) -> timedelta:
     """
     Parse time interval string into timedelta.
 
@@ -66,3 +68,49 @@ PROXY_STARTUP_TIMEOUT = os.environ.get("PROXY_STARTUP_TIMEOUT", "2m")
 
 # Tor exit node countries (comma-separated country codes)
 TOR_EXIT_NODES = os.environ.get("TOR_EXIT_NODES", "")
+
+# ============================================================================
+# Liveness Check Configuration
+# ============================================================================
+
+# How often to check if Tor instances can reach the target URL
+# Default: 30 seconds (30s)
+PROXY_LIVENESS_INTERVAL = os.environ.get("PROXY_LIVENESS_INTERVAL", "30s")
+
+# URL to check for liveness (must be reachable through Tor)
+# Default: Telegram API (common use case for Tor proxies)
+PROXY_LIVENESS_URL = os.environ.get("PROXY_LIVENESS_URL", "https://api.telegram.org")
+
+# Timeout for liveness check requests in seconds
+# Default: 10 seconds
+PROXY_LIVENESS_TIMEOUT = int(os.environ.get("PROXY_LIVENESS_TIMEOUT", "10"))
+
+# Jitter percentage to add randomness to liveness check interval
+# This prevents all Tor instances from checking at the same time
+# Example: 20% jitter on 30s interval means actual interval is 30-36 seconds
+# Default: 20 percent
+PROXY_LIVENESS_JITTER = int(os.environ.get("PROXY_LIVENESS_JITTER", "20"))
+
+# ============================================================================
+# UI Configuration
+# ============================================================================
+
+# UI mode: "none" (legacy), "status" (single line), "full" (split screen)
+UI_MODE = os.environ.get("UI_MODE", "full")
+
+# UI refresh interval in seconds (for TTY mode)
+UI_REFRESH_INTERVAL = int(os.environ.get("UI_REFRESH_INTERVAL", "1"))
+
+# ============================================================================
+# Individual Proxy Endpoints Configuration
+# ============================================================================
+
+# Enable individual HTTP proxy endpoints for each Tor instance
+# When enabled, creates one HTTP proxy per Tor instance for fixed IP routing
+# Default: disabled (0)
+ENABLE_INDIVIDUAL_PROXIES = os.environ.get("ENABLE_INDIVIDUAL_PROXIES", "0") == "1"
+
+# Base port for individual proxy endpoints
+# Individual proxies will be created on ports: BASE_PORT, BASE_PORT+1, BASE_PORT+2, ...
+# Default: 8890 (so first individual proxy is on 8890, second on 8891, etc.)
+INDIVIDUAL_PROXY_BASE_PORT = int(os.environ.get("INDIVIDUAL_PROXY_BASE_PORT", "8890"))
