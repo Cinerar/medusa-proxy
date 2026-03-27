@@ -9,6 +9,9 @@ import threading
 import time
 
 from config import VERSION, parse_time_interval
+
+# Global shutdown event for graceful termination
+shutdown_event = threading.Event()
 from config import (
     HEADS,
     TORS,
@@ -31,6 +34,50 @@ from proxy.ui import create_ui
 
 PROXY_LIST_TXT = "proxy-list.txt"
 PROXY_LIST_PY = "proxy-list.py"
+
+
+def interruptible_sleep(seconds: float, check_interval: float = 0.5) -> bool:
+    """
+    Sleep that can be interrupted by shutdown_event.
+    
+    Args:
+        seconds: Total seconds to sleep
+        check_interval: How often to check shutdown_event (default 0.5s)
+    
+    Returns:
+        True if sleep completed normally, False if interrupted
+    """
+    elapsed = 0.0
+    while elapsed < seconds:
+        if shutdown_event.is_set():
+            return False
+        
+        sleep_time = min(check_interval, seconds - elapsed)
+        time.sleep(sleep_time)
+        elapsed += sleep_time
+    
+    return True
+
+
+def setup_signal_handlers(ui=None):
+    """Setup signal handlers for graceful shutdown."""
+    
+    def signal_handler(signum, frame):
+        signal_name = signal.Signals(signum).name
+        log.info(f"Received {signal_name}, initiating graceful shutdown...")
+        
+        # Set shutdown event to stop all threads
+        shutdown_event.set()
+        
+        # Restore terminal state if UI was active
+        if ui and hasattr(ui, "restore_terminal"):
+            ui.restore_terminal()
+        
+        # Force exit - don't rely on garbage collection
+        os._exit(0)
+    
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
 
 
 def reap_children(*_):
@@ -64,6 +111,17 @@ def main():
 
     # Initialize status manager
     status_manager = StatusManager(version=VERSION)
+    status_manager.set_rotation_interval(
+        parse_time_interval(PROXY_ROTATE_INTERVAL).total_seconds()
+    )
+
+    # Create UI instance
+    ui = create_ui(status_manager, HEADS, TORS, UI_MODE)
+
+    # Setup signal handlers for graceful shutdown (after UI is created)
+    setup_signal_handlers(ui)
+
+    # Suppress console output if in TTY mode with full UI
     status_manager.set_rotation_interval(
         parse_time_interval(PROXY_ROTATE_INTERVAL).total_seconds()
     )
@@ -135,14 +193,20 @@ def main():
 
     def error_checker_thread():
         """Background thread to check error instances more frequently."""
-        while error_checker_running:
-            time.sleep(error_check_interval)
-            if not error_checker_running:
+        while not shutdown_event.is_set() and error_checker_running:
+            # Use interruptible sleep
+            if not interruptible_sleep(error_check_interval):
                 break
-
+            if not error_checker_running or shutdown_event.is_set():
+                break
+    
             # Check all Tor instances for error status
             for instance in privoxy_instances:
+                if shutdown_event.is_set():
+                    break
                 for tor_proxy in instance.haproxy.proxies:
+                    if shutdown_event.is_set():
+                        break
                     cached_status = status_manager.cache.get(tor_proxy.port)
                     if cached_status and cached_status.status in (
                         "error",
@@ -152,24 +216,25 @@ def main():
                         log.info(
                             f"[ErrorChecker] Checking port {tor_proxy.port} (status: {cached_status.status})"
                         )
-
+    
                         # Check if process is running
                         quick_status = tor_proxy.get_quick_status()
                         status_manager.update_from_health_check(
                             tor_proxy.port, quick_status
                         )
-
+    
                         if quick_status.status == "online":
                             log.info(
                                 f"[ErrorChecker] Port {tor_proxy.port} is online, checking if working..."
                             )
                             # If online, do full health check
-                            time.sleep(2)  # Wait for Tor to bootstrap
+                            if not interruptible_sleep(2):  # Wait for Tor to bootstrap
+                                break
                             new_status = tor_proxy.get_status()
                             status_manager.update_from_health_check(
                                 tor_proxy.port, new_status
                             )
-
+    
                             if new_status.status == "working":
                                 log.info(
                                     f"[ErrorChecker] Port {tor_proxy.port} is now WORKING!"
@@ -182,10 +247,10 @@ def main():
                             log.warning(
                                 f"[ErrorChecker] Port {tor_proxy.port} process not running (PID: {tor_proxy.pid or 'N/A'})"
                             )
-
-                        # Render UI to show updated status
-                        if ui:
-                            ui.render()
+    
+                    # Render UI to show updated status
+                    if ui and not shutdown_event.is_set():
+                        ui.render()
 
     # Liveness checker thread (will be started after startup)
     liveness_checker_running = False  # Will be set to True after startup
@@ -193,20 +258,26 @@ def main():
     def liveness_checker_thread():
         """Background thread to check if working Tor instances can reach target URL."""
         import random
-
-        while liveness_checker_running:
+        
+        while not shutdown_event.is_set() and liveness_checker_running:
             # Calculate sleep with jitter to avoid predictable patterns
             jitter_seconds = liveness_interval * (PROXY_LIVENESS_JITTER / 100.0)
             actual_sleep = liveness_interval + random.uniform(0, jitter_seconds)
-            time.sleep(actual_sleep)
-            if not liveness_checker_running:
+            # Use interruptible sleep
+            if not interruptible_sleep(actual_sleep):
                 break
-
+            if not liveness_checker_running or shutdown_event.is_set():
+                break
+        
             # Check all WORKING Tor instances
             for instance in privoxy_instances:
+                if shutdown_event.is_set():
+                    break
                 for tor_proxy in instance.haproxy.proxies:
+                    if shutdown_event.is_set():
+                        break
                     cached_status = status_manager.cache.get(tor_proxy.port)
-
+        
                     # Only check working instances
                     if cached_status and cached_status.status == "working":
                         log.info(
@@ -215,16 +286,16 @@ def main():
                         success, error_msg, response_ms = tor_proxy.check_liveness(
                             PROXY_LIVENESS_URL, PROXY_LIVENESS_TIMEOUT
                         )
-
+        
                         # Update liveness_ms in cached status
                         if cached_status.liveness_ms != response_ms:
                             cached_status.liveness_ms = response_ms
                             status_manager.update_from_health_check(
                                 tor_proxy.port, cached_status
                             )
-                            if ui:
-                                ui.render()
-
+                        if ui and not shutdown_event.is_set():
+                            ui.render()
+        
                         if success:
                             log.info(
                                 f"[LivenessChecker] Port {tor_proxy.port} - OK ({response_ms:.0f}ms)"
@@ -236,10 +307,10 @@ def main():
                             log.warning(
                                 f"[LivenessChecker] Restarting Tor on port {tor_proxy.port}"
                             )
-
+        
                             # Set restarting status BEFORE restart
                             from proxy.status import TorStatus
-
+        
                             restarting_status = TorStatus(
                                 port=tor_proxy.port,
                                 status="restarting",
@@ -248,39 +319,41 @@ def main():
                             status_manager.update_from_health_check(
                                 tor_proxy.port, restarting_status
                             )
-
+        
                             # Render UI to show restarting status
-                            if ui:
+                            if ui and not shutdown_event.is_set():
                                 ui.render()
-
+        
                             # Reset working tracking since we're restarting
                             tor_proxy._working_since = 0.0
                             tor_proxy._was_working = False
-
+        
                             # Perform the restart
                             tor_proxy.restart()
-
+        
                             # Wait a moment for Tor to start
-                            time.sleep(2)
-
+                            if not interruptible_sleep(2):
+                                break
+        
                             # Check if process is running
                             quick_status = tor_proxy.get_quick_status()
                             status_manager.update_from_health_check(
                                 tor_proxy.port, quick_status
                             )
-
+        
                             # Render UI to show new status
-                            if ui:
+                            if ui and not shutdown_event.is_set():
                                 ui.render()
-
+        
                             # If process is running, do a full health check
                             if quick_status.status == "online":
-                                time.sleep(3)  # Wait for bootstrap
+                                if not interruptible_sleep(3):  # Wait for bootstrap
+                                    break
                                 new_status = tor_proxy.get_status()
                                 status_manager.update_from_health_check(
                                     tor_proxy.port, new_status
                                 )
-
+        
                                 if new_status.status == "working":
                                     log.info(
                                         f"[LivenessChecker] Port {tor_proxy.port} is now WORKING!"
@@ -289,12 +362,13 @@ def main():
                                     log.warning(
                                         f"[LivenessChecker] Port {tor_proxy.port} is {new_status.status}"
                                     )
-
-                                if ui:
+        
+                                if ui and not shutdown_event.is_set():
                                     ui.render()
-
+        
                         # Small delay between instances to avoid peak load
-                        time.sleep(0.5)
+                        if not interruptible_sleep(0.5):
+                            break
 
                     # Wait for at least one Tor instance to become available
 
@@ -303,10 +377,18 @@ def main():
     start_time = time.time()
 
     while time.time() - start_time < startup_timeout:
+        if shutdown_event.is_set():
+            log.info("Shutdown requested during startup.")
+            break
+    
         # Check if any Tor instance is working
         any_working = False
         for instance in privoxy_instances:
+            if shutdown_event.is_set():
+                break
             for tor_proxy in instance.haproxy.proxies:
+                if shutdown_event.is_set():
+                    break
                 status = tor_proxy.get_status()
                 status_manager.update_from_health_check(tor_proxy.port, status)
                 if status.status == "working":
@@ -314,21 +396,23 @@ def main():
                     break
             if any_working:
                 break
-
+    
         # Render UI during startup
-        if ui:
+        if ui and not shutdown_event.is_set():
             ui.render()
-
+    
         if any_working:
             log.info("At least one Tor instance is ready. Starting main loop.")
             break
-
+    
         elapsed = time.time() - start_time
         remaining = startup_timeout - elapsed
         log.debug(
             f" No Tor instances ready yet. Waiting... ({remaining:.0f}s remaining)"
         )
-        time.sleep(startup_check_interval)
+        # Use interruptible sleep
+        if not interruptible_sleep(startup_check_interval):
+            break
     else:
         log.warning(
             f"Startup timeout ({PROXY_STARTUP_TIMEOUT}) reached. Starting main loop anyway."
@@ -380,24 +464,28 @@ def main():
     )
 
     # Main event loop
-    while True:
+    while not shutdown_event.is_set():
         # Health check phase
         log.info("Testing proxies.")
         for instance in privoxy_instances:
+            if shutdown_event.is_set():
+                break
             log.info(f"* Privoxy {instance.id}")
             haproxy = instance.haproxy
             for tor_proxy in haproxy.proxies:
+                if shutdown_event.is_set():
+                    break
                 # Get status and update cache
                 status = tor_proxy.get_status()
                 status_manager.update_from_health_check(tor_proxy.port, status)
-
+    
                 # Restart if not working
                 if status.status != "working":
                     log.warning(f" Restarting Tor on port {tor_proxy.port}.")
-
+    
                     # Set restarting status and update cache immediately
                     from proxy.status import TorStatus
-
+    
                     restarting_status = TorStatus(
                         port=tor_proxy.port,
                         status="restarting",
@@ -406,64 +494,70 @@ def main():
                     status_manager.update_from_health_check(
                         tor_proxy.port, restarting_status
                     )
-
+    
                     # Render UI to show restarting status
-                    if ui:
+                    if ui and not shutdown_event.is_set():
                         ui.render()
-
+    
                     # Perform the restart
                     tor_proxy.restart()
-
+    
                     # Wait a moment for Tor to start
-                    time.sleep(2)
-
+                    if not interruptible_sleep(2):
+                        break
+    
                     # Check if process is running
                     quick_status = tor_proxy.get_quick_status()
                     status_manager.update_from_health_check(
                         tor_proxy.port, quick_status
                     )
-
+    
                     # Render UI to show online status
-                    if ui:
+                    if ui and not shutdown_event.is_set():
                         ui.render()
-
+    
                     # If process is running, do a quick health check
                     if quick_status.status == "online":
                         # Give Tor a few more seconds to bootstrap
-                        time.sleep(3)
-
+                        if not interruptible_sleep(3):
+                            break
+    
                         # Perform full health check
                         new_status = tor_proxy.get_status()
                         status_manager.update_from_health_check(
                             tor_proxy.port, new_status
                         )
-
+    
                         # Render UI to show working/error status
-                        if ui:
+                        if ui and not shutdown_event.is_set():
                             ui.render()
-
+    
         # Render UI after health check
-        if ui:
+        if ui and not shutdown_event.is_set():
             ui.render()
-
+    
         # Check if rotation is needed
-        current_time = time.time()
-        time_since_rotation = current_time - last_rotation
-
-        if time_since_rotation >= rotate_interval:
-            log.info(f"Rotating Tor circuits (interval: {PROXY_ROTATE_INTERVAL}).")
-            for instance in privoxy_instances:
-                instance.rotate_circuits()
-            last_rotation = current_time
-            status_manager.record_rotation()
-            log.info("Rotation complete.")
-        else:
-            remaining = rotate_interval - time_since_rotation
-            log.debug(f"Next rotation in {remaining:.0f} seconds.")
-
+        if not shutdown_event.is_set():
+            current_time = time.time()
+            time_since_rotation = current_time - last_rotation
+    
+            if time_since_rotation >= rotate_interval:
+                log.info(f"Rotating Tor circuits (interval: {PROXY_ROTATE_INTERVAL}).")
+                for instance in privoxy_instances:
+                    if shutdown_event.is_set():
+                        break
+                    instance.rotate_circuits()
+                last_rotation = current_time
+                status_manager.record_rotation()
+                log.info("Rotation complete.")
+            else:
+                remaining = rotate_interval - time_since_rotation
+                log.debug(f"Next rotation in {remaining:.0f} seconds.")
+    
         # Sleep until next health check
         log.info(f"Sleeping for {PROXY_CHECK_INTERVAL}.")
-        time.sleep(check_interval)
+        if not interruptible_sleep(check_interval):
+            break
 
 
 try:
