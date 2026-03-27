@@ -8,7 +8,9 @@ VERSION = "0.3.2"
 # ============================================================================
 
 
-def parse_time_interval(time_str: str, default: timedelta = timedelta(minutes=15)) -> timedelta:
+def parse_time_interval(
+    time_str: str, default: timedelta = timedelta(minutes=15)
+) -> timedelta:
     """
     Parse time interval string into timedelta.
 
@@ -98,3 +100,17 @@ UI_MODE = os.environ.get("UI_MODE", "full")
 
 # UI refresh interval in seconds (for TTY mode)
 UI_REFRESH_INTERVAL = int(os.environ.get("UI_REFRESH_INTERVAL", "1"))
+
+# ============================================================================
+# Individual Proxy Endpoints Configuration
+# ============================================================================
+
+# Enable individual HTTP proxy endpoints for each Tor instance
+# When enabled, creates one HTTP proxy per Tor instance for fixed IP routing
+# Default: disabled (0)
+ENABLE_INDIVIDUAL_PROXIES = os.environ.get("ENABLE_INDIVIDUAL_PROXIES", "0") == "1"
+
+# Base port for individual proxy endpoints
+# Individual proxies will be created on ports: BASE_PORT, BASE_PORT+1, BASE_PORT+2, ...
+# Default: 8890 (so first individual proxy is on 8890, second on 8891, etc.)
+INDIVIDUAL_PROXY_BASE_PORT = int(os.environ.get("INDIVIDUAL_PROXY_BASE_PORT", "8890"))

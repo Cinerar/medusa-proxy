@@ -8,10 +8,11 @@ from .service import Service
 class Haproxy(Service):
     executable = "/usr/sbin/haproxy"
 
-    def __init__(self, id, proxies, port=1080):
+    def __init__(self, id, proxies, port=1080, fixed_proxy=None):
         self.id = id
         super().__init__(port + self.id)
         self.proxies = proxies
+        self.fixed_proxy = fixed_proxy
         self.options = "-V"
         self.config = f"/etc/haproxy/haproxy-{self.id}"
 
@@ -28,6 +29,7 @@ class Haproxy(Service):
             port=self.port,
             stats=2090 + self.id,
             proxies=self.proxies,
+            fixed_proxy=self.fixed_proxy,
         )
 
         with open(self.config, "wt") as file:
