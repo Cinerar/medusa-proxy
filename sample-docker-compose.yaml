@@ -33,13 +33,29 @@ services:
     - PROXY_LIVENESS_TIMEOUT=10
     # Jitter percentage to add randomness to liveness check interval (prevents predictable patterns)
     - PROXY_LIVENESS_JITTER=20
+    # Enable individual HTTP proxy endpoints for each Tor instance (0=disabled, 1=enabled)
+    # When enabled, creates separate HTTP proxies on ports 8890, 8891, 8892, etc.
+    # Each individual proxy routes through a specific Tor instance for a fixed IP
+    # Useful when you need consistent IP addresses for specific tasks
+    - ENABLE_INDIVIDUAL_PROXIES=0
+    # Base port for individual proxy endpoints (default: 8890)
+    # Individual proxies will be created on ports: BASE_PORT, BASE_PORT+1, BASE_PORT+2, ...
+    # Example: 8890 -> Tor #1, 8891 -> Tor #2, 8892 -> Tor #3, etc.
+    - INDIVIDUAL_PROXY_BASE_PORT=8890
 
     container_name: medusa-proxy
     volumes:
     - ./bridges.lst:/bridges.lst:ro
     restart: no
     ports:
-    - '8888:8888'
-    - '1080:1080'
-    - '2090:2090'
-    - '8800:8800'
+    - '8888:8888'    # HTTP proxy (balanced across all Tor instances)
+    - '1080:1080'    # SOCKS proxy (HAProxy)
+    - '2090:2090'    # HAProxy stats
+    - '8800:8800'    # Proxy list HTTP server
+    # Individual proxy endpoints (only needed if ENABLE_INDIVIDUAL_PROXIES=1)
+    # Uncomment and adjust based on your TORS count
+    # - '8890:8890'  # Individual proxy -> Tor instance #1 (fixed IP)
+    # - '8891:8891'  # Individual proxy -> Tor instance #2 (fixed IP)
+    # - '8892:8892'  # Individual proxy -> Tor instance #3 (fixed IP)
+    # - '8893:8893'  # Individual proxy -> Tor instance #4 (fixed IP)
+    # - '8894:8894'  # Individual proxy -> Tor instance #5 (fixed IP)

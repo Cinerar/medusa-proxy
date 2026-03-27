@@ -34,6 +34,8 @@ Privoxy exposes an HTTP proxy.
 - `PROXY_STARTUP_TIMEOUT` — Maximum time to wait for at least one Tor instance to become available (default: `2m`).
 - `UI_MODE` — UI display mode: `none` (legacy), `status` (single line), `full` (split screen) (default: `full`).
 - `UI_REFRESH_INTERVAL` — UI refresh interval in seconds for TTY mode (default: `1`).
+- `ENABLE_INDIVIDUAL_PROXIES` — Enable individual HTTP proxy endpoints for each Tor instance (default: `0`).
+- `INDIVIDUAL_PROXY_BASE_PORT` — Base port for individual proxies (default: `8890`).
 
 ## Tor Bridges
 
@@ -140,3 +142,44 @@ Liveness parameters:
 - `PROXY_LIVENESS_URL` — URL to test (default: `https://api.telegram.org`)
 - `PROXY_LIVENESS_TIMEOUT` — Request timeout in seconds (default: `10`)
 - `PROXY_LIVENESS_JITTER` — Random delay percentage to avoid predictable patterns (default: `20`)
+
+## Individual Proxy Endpoints
+
+Medusa Proxy supports creating individual HTTP proxy endpoints for each Tor instance. This allows you to route requests through a specific Tor instance, providing a fixed IP address for certain tasks.
+
+When enabled, the following endpoints are available:
+
+- **Balanced endpoint** (always available): `http://127.0.0.1:8888` — Round-robin across all Tor instances
+- **Individual endpoints** (when enabled): `http://127.0.0.1:8890`, `http://127.0.0.1:8891`, etc. — Each routes through a specific Tor instance
+
+### Usage Example
+
+```bash
+# Enable individual proxies
+docker run --rm -it \
+    -e TORS=3 \
+    -e ENABLE_INDIVIDUAL_PROXIES=1 \
+    -e INDIVIDUAL_PROXY_BASE_PORT=8890 \
+    -p 8888:8888 -p 8890:8890 -p 8891:8891 -p 8892:8892 \
+    -p 1080:1080 -p 2090:2090 \
+    datawookie/medusa-proxy
+
+# Use balanced proxy (rotates IPs automatically)
+curl --proxy localhost:8888 http://httpbin.org/ip
+
+# Use fixed Tor instance #1 (consistent IP until rotation)
+curl --proxy localhost:8890 http://httpbin.org/ip
+
+# Use fixed Tor instance #2
+curl --proxy localhost:8891 http://httpbin.org/ip
+
+# Use fixed Tor instance #3
+curl --proxy localhost:8892 http://httpbin.org/ip
+```
+
+### Proxy List Files
+
+- `proxy-list.txt` — List of balanced proxy endpoints
+- `proxy-list-individual.txt` — List of individual proxy endpoints (created when `ENABLE_INDIVIDUAL_PROXIES=1`)
+
+Both files are served via HTTP at `http://localhost:8800/proxy-list.txt` and `http://localhost:8800/proxy-list-individual.txt`.
