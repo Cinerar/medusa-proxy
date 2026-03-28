@@ -114,3 +114,16 @@ ENABLE_INDIVIDUAL_PROXIES = os.environ.get("ENABLE_INDIVIDUAL_PROXIES", "0") == 
 # Individual proxies will be created on ports: BASE_PORT, BASE_PORT+1, BASE_PORT+2, ...
 # Default: 8890 (so first individual proxy is on 8890, second on 8891, etc.)
 INDIVIDUAL_PROXY_BASE_PORT = int(os.environ.get("INDIVIDUAL_PROXY_BASE_PORT", "8890"))
+
+# ============================================================================
+# Web UI Configuration
+# ============================================================================
+
+# Enable web UI (alternative to terminal UI)
+# When enabled, provides a web interface for monitoring at WEB_UI_PORT
+# Default: disabled (0)
+ENABLE_WEB_UI = os.environ.get("ENABLE_WEB_UI", "0") == "1"
+
+# Port for web UI
+# Default: 14789 (rare port to avoid conflicts)
+WEB_UI_PORT = int(os.environ.get("WEB_UI_PORT", "14789"))
