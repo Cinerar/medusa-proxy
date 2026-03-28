@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medusa Proxy Monitor</title>
+    <style>
+        /* Match terminal UI colors from proxy/ui.py */
+        :root {
+            --green: #4CAF50;
+            --red: #f44336;
+            --yellow: #FFC107;
+            --cyan: #00BCD4;
+            --magenta: #9C27B0;
+            --blue: #2196F3;
+            --bg: #1a1a1a;
+            --fg: #e0e0e0;
+            --dim: #666666;
+            --border: #333333;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+            background: var(--bg);
+            color: var(--fg);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            border-bottom: 1px solid var(--cyan);
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+        }
+
+        .header h1 {
+            margin: 0 0 10px 0;
+            color: var(--cyan);
+            font-size: 24px;
+        }
+
+        .header-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            font-size: 14px;
+        }
+
+        .header-stats span {
+            color: var(--dim);
+        }
+
+        .header-stats .value {
+            color: var(--fg);
+        }
+
+        .header-stats .working {
+            color: var(--green);
+        }
+
+        /* Status Table */
+        .status-section {
+            margin-bottom: 20px;
+        }
+
+        .status-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .status-table th,
+        .status-table td {
+            padding: 10px 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .status-table th {
+            color: var(--cyan);
+            font-weight: bold;
+            border-bottom: 2px solid var(--cyan);
+        }
+
+        .status-table td {
+            font-family: 'Courier New', monospace;
+        }
+
+        /* Status colors */
+        .status-working { color: var(--green); }
+        .status-error { color: var(--red); }
+        .status-checking { color: var(--yellow); }
+        .status-restarting { color: var(--magenta); }
+        .status-online { color: var(--blue); }
+
+        .status-icon {
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        /* Log Panel */
+        .log-section {
+            border-top: 1px solid var(--cyan);
+            padding-top: 15px;
+        }
+
+        .log-section h3 {
+            margin: 0 0 10px 0;
+            color: var(--cyan);
+            font-size: 16px;
+        }
+
+        .log-panel {
+            background: #0d0d0d;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+
+        .log-line {
+            padding: 2px 0;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .log-line.info {
+            color: var(--fg);
+        }
+
+        .log-line.warning {
+            color: var(--yellow);
+        }
+
+        .log-line.error {
+            color: var(--red);
+        }
+
+        /* Connection status */
+        .connection-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .connection-status.connected {
+            background: var(--green);
+            color: white;
+        }
+
+        .connection-status.disconnected {
+            background: var(--red);
+            color: white;
+        }
+
+        .connection-status.connecting {
+            background: var(--yellow);
+            color: black;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .header h1 {
+                font-size: 18px;
+            }
+
+            .header-stats {
+                flex-direction: column;
+                gap: 5px;
+            }
+
+            .status-table {
+                font-size: 12px;
+            }
+
+            .status-table th,
+            .status-table td {
+                padding: 6px 4px;
+            }
+        }
+
+        /* Scrollbar styling */
+        .log-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .log-panel::-webkit-scrollbar-track {
+            background: var(--bg);
+        }
+
+        .log-panel::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        .log-panel::-webkit-scrollbar-thumb:hover {
+            background: var(--dim);
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status connecting" id="connection-status">
+        Connecting...
+    </div>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>Medusa Proxy <span id="version"></span></h1>
+            <div class="header-stats">
+                <span>Uptime: <span class="value" id="uptime">--:--</span></span>
+                <span>Working: <span class="value working" id="working">0</span>/<span class="value" id="total">0</span></span>
+                <span>Next Rotation: <span class="value" id="next-rotation">--:--</span></span>
+                <span>Last Check: <span class="value" id="last-check">--:--</span></span>
+            </div>
+        </div>
+
+        <!-- Status Table -->
+        <div class="status-section">
+            <table class="status-table">
+                <thead>
+                    <tr>
+                        <th>Port</th>
+                        <th>Status</th>
+                        <th>IP</th>
+                        <th>Country</th>
+                        <th>City</th>
+                        <th>Uptime</th>
+                        <th>Latency</th>
+                    </tr>
+                </thead>
+                <tbody id="status-body">
+                    <tr>
+                        <td colspan="7" style="text-align: center; color: var(--dim);">
+                            Loading...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Log Panel -->
+        <div class="log-section">
+            <h3>Log Output (<span id="log-count">0</span> lines)</h3>
+            <div class="log-panel" id="log-output">
+                <div class="log-line" style="color: var(--dim);">Waiting for logs...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Connection status element
+        const connectionStatus = document.getElementById('connection-status');
+
+        // EventSource for SSE connection
+        let eventSource = null;
+
+        function connect() {
+            connectionStatus.textContent = 'Connecting...';
+            connectionStatus.className = 'connection-status connecting';
+
+            eventSource = new EventSource('/events');
+
+            eventSource.onopen = function() {
+                connectionStatus.textContent = 'Connected';
+                connectionStatus.className = 'connection-status connected';
+            };
+
+            eventSource.onerror = function() {
+                connectionStatus.textContent = 'Disconnected';
+                connectionStatus.className = 'connection-status disconnected';
+                
+                // Reconnect after 3 seconds
+                setTimeout(connect, 3000);
+            };
+
+            eventSource.addEventListener('status', function(e) {
+                try {
+                    const data = JSON.parse(e.data);
+                    updateHeader(data.summary);
+                    updateStatusTable(data.statuses);
+                } catch (err) {
+                    console.error('Error parsing status:', err);
+                }
+            });
+
+            eventSource.addEventListener('logs', function(e) {
+                try {
+                    const logs = JSON.parse(e.data);
+                    updateLogs(logs);
+                } catch (err) {
+                    console.error('Error parsing logs:', err);
+                }
+            });
+        }
+
+        function updateHeader(summary) {
+            document.getElementById('version').textContent = summary.version;
+            document.getElementById('uptime').textContent = summary.uptime;
+            document.getElementById('working').textContent = summary.working_count;
+            document.getElementById('total').textContent = summary.total_count;
+            document.getElementById('next-rotation').textContent = summary.next_rotation;
+            document.getElementById('last-check').textContent = summary.last_check;
+        }
+
+        function updateStatusTable(statuses) {
+            const tbody = document.getElementById('status-body');
+            
+            if (statuses.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align: center; color: var(--dim);">
+                            No Tor instances found
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = statuses.map(s => `
+                <tr class="status-${s.status}">
+                    <td>${s.port}</td>
+                    <td>
+                        <span class="status-icon">${getStatusIcon(s.status)}</span>
+                        ${s.status}
+                    </td>
+                    <td>${s.ip || '---'}</td>
+                    <td>${s.location?.country || '---'}</td>
+                    <td>${s.location?.city || '---'}</td>
+                    <td>${formatUptime(s.uptime)}</td>
+                    <td>${s.liveness_ms ? s.liveness_ms.toFixed(0) + 'ms' : '---'}</td>
+                </tr>
+            `).join('');
+        }
+
+        function updateLogs(logs) {
+            const output = document.getElementById('log-output');
+            const logCount = document.getElementById('log-count');
+            
+            logCount.textContent = logs.length;
+            
+            if (logs.length === 0) {
+                output.innerHTML = '<div class="log-line" style="color: var(--dim);">No logs yet...</div>';
+                return;
+            }
+
+            output.innerHTML = logs.map(l => {
+                const cssClass = getLogClass(l);
+                return `<div class="log-line ${cssClass}">${escapeHtml(l)}</div>`;
+            }).join('');
+
+            // Auto-scroll to bottom
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function getStatusIcon(status) {
+            const icons = {
+                'working': '✓',
+                'error': '✗',
+                'checking': '⏳',
+                'restarting': '⟳',
+                'online': '●',
+            };
+            return icons[status] || '?';
+        }
+
+        function formatUptime(seconds) {
+            if (!seconds || seconds <= 0) return '---';
+            
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            
+            if (h > 0) {
+                return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            } else {
+                return `${m}:${s.toString().padStart(2, '0')}`;
+            }
+        }
+
+        function getLogClass(logLine) {
+            if (logLine.includes('[ERROR]')) return 'error';
+            if (logLine.includes('[WARNING]')) return 'warning';
+            return 'info';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Start connection
+        connect();
+    </script>
+</body>
+</html>
