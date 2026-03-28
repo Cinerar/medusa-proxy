@@ -11,7 +11,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 COPY pyproject.toml uv.lock ./
 
 RUN apk add --no-cache gcc musl-dev python3-dev libffi-dev
-RUN uv sync --frozen --no-install-project --no-dev
+RUN uv sync --no-install-project --no-dev
 
 # ==================================================================================================
 # RUNNER
@@ -37,7 +37,7 @@ COPY config.py health-check.py proxy-list.py start.py /
 
 HEALTHCHECK --interval=5m --retries=3 --start-period=15s --timeout=5s CMD ["/health-check.py"]
 
-EXPOSE 1080 2090 8800 8888
+EXPOSE 1080 2090 8800 8888 14789
 
 ENV PATH="/.venv/bin:$PATH"
 
