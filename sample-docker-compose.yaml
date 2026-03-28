@@ -42,6 +42,11 @@ services:
     # Individual proxies will be created on ports: BASE_PORT, BASE_PORT+1, BASE_PORT+2, ...
     # Example: 8890 -> Tor #1, 8891 -> Tor #2, 8892 -> Tor #3, etc.
     - INDIVIDUAL_PROXY_BASE_PORT=8890
+    # Enable web UI for monitoring (0=disabled, 1=enabled)
+    # Provides a browser-based interface to monitor Tor proxy status
+    - ENABLE_WEB_UI=1
+    # Port for web UI (default: 14789)
+    - WEB_UI_PORT=14789
 
     container_name: medusa-proxy
     volumes:
@@ -51,11 +56,13 @@ services:
     - '8888:8888'    # HTTP proxy (balanced across all Tor instances)
     - '1080:1080'    # SOCKS proxy (HAProxy)
     - '2090:2090'    # HAProxy stats
-    - '8800:8800'    # Proxy list HTTP server
+    - '8800:8800' # Proxy list HTTP server
+    # Web UI for monitoring (only needed if ENABLE_WEB_UI=1)
+    - '14789:14789' # Web UI
     # Individual proxy endpoints (only needed if ENABLE_INDIVIDUAL_PROXIES=1)
     # Uncomment and adjust based on your TORS count
-    # - '8890:8890'  # Individual proxy -> Tor instance #1 (fixed IP)
-    # - '8891:8891'  # Individual proxy -> Tor instance #2 (fixed IP)
-    # - '8892:8892'  # Individual proxy -> Tor instance #3 (fixed IP)
-    # - '8893:8893'  # Individual proxy -> Tor instance #4 (fixed IP)
+    # - '8890:8890' # Individual proxy -> Tor instance #1 (fixed IP)
+    # - '8891:8891' # Individual proxy -> Tor instance #2 (fixed IP)
+    # - '8892:8892' # Individual proxy -> Tor instance #3 (fixed IP)
+    # - '8893:8893' # Individual proxy -> Tor instance #4 (fixed IP)
     # - '8894:8894'  # Individual proxy -> Tor instance #5 (fixed IP)

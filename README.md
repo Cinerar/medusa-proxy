@@ -36,6 +36,8 @@ Privoxy exposes an HTTP proxy.
 - `UI_REFRESH_INTERVAL` — UI refresh interval in seconds for TTY mode (default: `1`).
 - `ENABLE_INDIVIDUAL_PROXIES` — Enable individual HTTP proxy endpoints for each Tor instance (default: `0`).
 - `INDIVIDUAL_PROXY_BASE_PORT` — Base port for individual proxies (default: `8890`).
+- `ENABLE_WEB_UI` — Enable web-based monitoring interface (default: `0`).
+- `WEB_UI_PORT` — Port for web UI server (default: `14789`).
 
 ## Tor Bridges
 
@@ -60,6 +62,7 @@ Notes:
 - 1080 — HAProxy port
 - 2090 — HAProxy statistics port
 - 8888 — Privoxy port
+- 14789 — Web UI port (when `ENABLE_WEB_UI=1`)
 
 ## Usage
 
@@ -132,6 +135,52 @@ docker compose up
 ### UI Controls
 
 - Press `Ctrl+C` to exit (terminal will be restored automatically)
+
+## Web UI
+
+Medusa Proxy also provides a web-based monitoring interface that replicates the terminal UI in a browser. This is useful for:
+
+- Remote monitoring without SSH access
+- Monitoring multiple instances from a single dashboard
+- Avoiding TTY-related issues with docker-compose
+
+### Enabling Web UI
+
+```bash
+# Using docker run
+docker run --rm -d \
+  -e ENABLE_WEB_UI=1 \
+  -e WEB_UI_PORT=14789 \
+  -p 14789:14789 \
+  -p 8888:8888 -p 1080:1080 \
+  datawookie/medusa-proxy
+
+# Using docker compose
+# Add to docker-compose.yaml:
+# environment:
+#   - ENABLE_WEB_UI=1
+#   - WEB_UI_PORT=14789
+# ports:
+#   - "14789:14789"
+```
+
+Then open http://localhost:14789 in your browser.
+
+### Web UI Features
+
+- **Real-time updates**: Status and logs update automatically via Server-Sent Events (SSE)
+- **Dark theme**: Matches terminal UI colors
+- **Responsive design**: Works on desktop and mobile devices
+- **Status table**: Port, status, IP, country, city, uptime, latency
+- **Log panel**: Last 20 log messages with auto-scroll
+
+### Web UI Endpoints
+
+- `/` — Main web UI page
+- `/events` — SSE endpoint for real-time updates
+- `/api/status` — JSON snapshot of all Tor instance statuses
+- `/api/logs` — JSON snapshot of log messages
+- `/api/health` — Health check endpoint
 
 ### Liveness Monitoring
 
