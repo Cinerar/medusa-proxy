@@ -27,8 +27,9 @@ from config import (
     PROXY_LIVENESS_JITTER,
 )
 from config import ENABLE_INDIVIDUAL_PROXIES, INDIVIDUAL_PROXY_BASE_PORT
+from config import ENABLE_WEB_UI, WEB_UI_PORT
 from proxy import Privoxy, log
-from proxy.log import suppress_console_output, set_log_callback
+from proxy.log import suppress_console_output, set_log_callback, get_log_buffer
 from proxy.status import StatusManager, TorStatus
 from proxy.ui import create_ui
 
@@ -157,7 +158,45 @@ def main():
     log.info(f" PROXY_LIVENESS_INTERVAL: {PROXY_LIVENESS_INTERVAL}")
     log.info(f" PROXY_LIVENESS_URL: {PROXY_LIVENESS_URL}")
     log.info(f" UI_MODE: {UI_MODE}")
+    log.info(f" ENABLE_WEB_UI: {ENABLE_WEB_UI}")
+    if ENABLE_WEB_UI:
+        log.info(f" WEB_UI_PORT: {WEB_UI_PORT}")
     log.info("")
+
+    # Start Web UI if enabled
+    web_thread = None
+    if ENABLE_WEB_UI:
+        try:
+            from proxy.web import create_web_app
+
+            # Create Flask app with shared state
+            web_app = create_web_app(
+                status_manager=status_manager,
+                log_buffer=get_log_buffer(),
+                heads=HEADS,
+                tors=TORS,
+            )
+
+            def run_web_server():
+                """Run Flask web server in background thread."""
+                import logging
+                # Suppress Flask/Werkzeug logging except errors
+                log = logging.getLogger("werkzeug")
+                log.setLevel(logging.ERROR)
+                web_app.run(
+                    host="0.0.0.0",
+                    port=WEB_UI_PORT,
+                    threaded=True,
+                    use_reloader=False,
+                )
+
+            web_thread = threading.Thread(target=run_web_server, daemon=True)
+            web_thread.start()
+            log.info(f"Web UI available at http://0.0.0.0:{WEB_UI_PORT}")
+        except ImportError as e:
+            log.warning(f"Web UI disabled: Flask not installed ({e})")
+        except Exception as e:
+            log.warning(f"Failed to start Web UI: {e}")
 
     # Create Privoxy instances with Tor backends
     privoxy_instances = [Privoxy(TORS, i) for i in range(HEADS)]
