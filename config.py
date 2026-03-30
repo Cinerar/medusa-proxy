@@ -127,3 +127,44 @@ ENABLE_WEB_UI = os.environ.get("ENABLE_WEB_UI", "0") == "1"
 # Port for web UI
 # Default: 14789 (rare port to avoid conflicts)
 WEB_UI_PORT = int(os.environ.get("WEB_UI_PORT", "14789"))
+
+# ============================================================================
+# Direct-First Proxy Configuration
+# ============================================================================
+
+# Enable direct-first proxy (tries direct connection, falls back to Tor)
+# When enabled, creates an HTTP proxy that tries direct connection first,
+# then falls back to Tor after consecutive failures
+# Default: disabled (0)
+ENABLE_DIRECT_FIRST_PROXY = os.environ.get("ENABLE_DIRECT_FIRST_PROXY", "0") == "1"
+
+# Port for direct-first proxy
+# Default: 9090 (rare port to avoid conflicts)
+DIRECT_FIRST_PROXY_PORT = int(os.environ.get("DIRECT_FIRST_PROXY_PORT", "9090"))
+
+# Number of consecutive failures before switching to Tor
+# Default: 2 (switch to Tor after 2 consecutive failures)
+DIRECT_FIRST_MAX_FAILURES = int(os.environ.get("DIRECT_FIRST_MAX_FAILURES", "2"))
+
+# Request timeout in seconds
+# Default: 30 seconds
+DIRECT_FIRST_TIMEOUT = int(os.environ.get("DIRECT_FIRST_TIMEOUT", "30"))
+
+# HAProxy port for Tor routing
+# Default: 1080 (default HAProxy port)
+DIRECT_FIRST_HAPROXY_PORT = int(os.environ.get("DIRECT_FIRST_HAPROXY_PORT", "1080"))
+
+# Bypass list - hosts that should ALWAYS use direct connection (never go through Tor)
+# Comma-separated list of hosts/IPs/CIDR ranges
+# Examples:
+#   - "localhost,127.0.0.1" - local addresses
+#   - "192.168.0.0/16,10.0.0.0/8" - private networks
+#   - ".internal.example.com" - domain suffix (matches sub.internal.example.com)
+#   - "api.trusted-service.com" - exact domain match
+# Default: empty (no bypass)
+DIRECT_FIRST_BYPASS = os.environ.get("DIRECT_FIRST_BYPASS", "")
+
+# Path to file containing bypass list (one entry per line)
+# If set, takes precedence over DIRECT_FIRST_BYPASS environment variable
+# Default: empty (use environment variable)
+DIRECT_FIRST_BYPASS_FILE = os.environ.get("DIRECT_FIRST_BYPASS_FILE", "")

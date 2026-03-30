@@ -28,6 +28,15 @@ from config import (
 )
 from config import ENABLE_INDIVIDUAL_PROXIES, INDIVIDUAL_PROXY_BASE_PORT
 from config import ENABLE_WEB_UI, WEB_UI_PORT
+from config import (
+    ENABLE_DIRECT_FIRST_PROXY,
+    DIRECT_FIRST_PROXY_PORT,
+    DIRECT_FIRST_MAX_FAILURES,
+    DIRECT_FIRST_TIMEOUT,
+    DIRECT_FIRST_HAPROXY_PORT,
+    DIRECT_FIRST_BYPASS,
+    DIRECT_FIRST_BYPASS_FILE,
+)
 from proxy import Privoxy, log
 from proxy.log import suppress_console_output, set_log_callback, get_log_buffer
 from proxy.status import StatusManager, TorStatus
@@ -161,6 +170,11 @@ def main():
     log.info(f" ENABLE_WEB_UI: {ENABLE_WEB_UI}")
     if ENABLE_WEB_UI:
         log.info(f" WEB_UI_PORT: {WEB_UI_PORT}")
+    log.info(f" ENABLE_DIRECT_FIRST_PROXY: {ENABLE_DIRECT_FIRST_PROXY}")
+    if ENABLE_DIRECT_FIRST_PROXY:
+        log.info(f" DIRECT_FIRST_PROXY_PORT: {DIRECT_FIRST_PROXY_PORT}")
+        log.info(f" DIRECT_FIRST_MAX_FAILURES: {DIRECT_FIRST_MAX_FAILURES}")
+        log.info(f" DIRECT_FIRST_TIMEOUT: {DIRECT_FIRST_TIMEOUT}")
     log.info("")
 
     # Start Web UI if enabled
@@ -219,8 +233,45 @@ def main():
         log.info(
             f"Created {len(individual_privoxy_instances)} individual proxy endpoints."
         )
-
-    # Parse intervals
+    
+        # Create direct-first proxy if enabled
+        direct_first_proxy = None
+        if ENABLE_DIRECT_FIRST_PROXY:
+            try:
+                from proxy.fallback import FallbackProxy, BypassList
+    
+                # Create and populate bypass list
+                bypass_list = BypassList()
+                
+                # Load from file if specified
+                if DIRECT_FIRST_BYPASS_FILE:
+                    if bypass_list.load_from_file(DIRECT_FIRST_BYPASS_FILE):
+                        log.info(f"Loaded bypass list from {DIRECT_FIRST_BYPASS_FILE}")
+                
+                # Load from environment variable
+                if DIRECT_FIRST_BYPASS:
+                    bypass_list.load_from_string(DIRECT_FIRST_BYPASS)
+                
+                bypass_count = len(bypass_list.entries)
+                if bypass_count > 0:
+                    log.info(f"Bypass list: {bypass_count} entries")
+    
+                direct_first_proxy = FallbackProxy(
+                    port=DIRECT_FIRST_PROXY_PORT,
+                    haproxy_port=DIRECT_FIRST_HAPROXY_PORT,
+                    max_failures=DIRECT_FIRST_MAX_FAILURES,
+                    timeout=DIRECT_FIRST_TIMEOUT,
+                    bypass_list=bypass_list,
+                )
+                status_manager.set_fallback_proxy(direct_first_proxy)
+                log.info(
+                    f"Direct-first proxy started on port {DIRECT_FIRST_PROXY_PORT} "
+                    f"(HAProxy: {DIRECT_FIRST_HAPROXY_PORT}, bypass: {bypass_count})"
+                )
+            except Exception as e:
+                log.error(f"Failed to start direct-first proxy: {e}")
+    
+        # Parse intervals
     check_interval = parse_time_interval(PROXY_CHECK_INTERVAL).total_seconds()
     rotate_interval = parse_time_interval(PROXY_ROTATE_INTERVAL).total_seconds()
     startup_timeout = parse_time_interval(PROXY_STARTUP_TIMEOUT).total_seconds()

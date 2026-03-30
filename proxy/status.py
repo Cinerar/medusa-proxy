@@ -8,7 +8,10 @@ supporting the split-terminal UI display.
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .fallback import FallbackStatus
 
 
 @dataclass
@@ -98,6 +101,7 @@ class StatusManager:
     def __init__(self, version: str = "0.0.0"):
         self._cache = DisplayCache()
         self._version = version
+        self._fallback_proxy = None  # Reference to FallbackProxy instance
         self._start_time = datetime.now()
         self._last_rotation: Optional[datetime] = None
         self._rotation_interval: float = 3600.0  # Default 1 hour
@@ -172,6 +176,18 @@ class StatusManager:
             next_rotation=next_rotation_str,
             last_check=last_check_str,
         )
+
+    def set_fallback_proxy(self, fallback_proxy) -> None:
+        """Set reference to the fallback proxy instance."""
+        with self._lock:
+            self._fallback_proxy = fallback_proxy
+
+    def get_fallback_status(self) -> Optional["FallbackStatus"]:
+        """Get current status of the fallback proxy."""
+        with self._lock:
+            if self._fallback_proxy is None:
+                return None
+            return self._fallback_proxy.get_status()
 
     @staticmethod
     def _format_duration(seconds: float) -> str:
