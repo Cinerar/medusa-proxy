@@ -38,6 +38,13 @@ Privoxy exposes an HTTP proxy.
 - `INDIVIDUAL_PROXY_BASE_PORT` — Base port for individual proxies (default: `8890`).
 - `ENABLE_WEB_UI` — Enable web-based monitoring interface (default: `0`).
 - `WEB_UI_PORT` — Port for web UI server (default: `14789`).
+- `ENABLE_DIRECT_FIRST_PROXY` — Enable direct-first proxy (tries direct, falls back to Tor) (default: `0`).
+- `DIRECT_FIRST_PROXY_PORT` — Port for direct-first proxy (default: `9090`).
+- `DIRECT_FIRST_MAX_FAILURES` — Number of consecutive failures before switching to Tor. Special value `-1` means "always use Tor" (except bypass list) (default: `2`).
+- `DIRECT_FIRST_TIMEOUT` — Request timeout in seconds for direct-first proxy (default: `30`).
+- `DIRECT_FIRST_HAPROXY_PORT` — HAProxy port for Tor routing (default: `1080`).
+- `DIRECT_FIRST_BYPASS` — Comma-separated list of hosts/IPs that should always use direct connection (default: `""`).
+- `DIRECT_FIRST_BYPASS_FILE` — Path to file containing bypass list (one entry per line) (default: `""`).
 
 ## Tor Bridges
 
@@ -62,6 +69,7 @@ Notes:
 - 1080 — HAProxy port
 - 2090 — HAProxy statistics port
 - 8888 — Privoxy port
+- 9090 — Direct-first proxy port (when `ENABLE_DIRECT_FIRST_PROXY=1`)
 - 14789 — Web UI port (when `ENABLE_WEB_UI=1`)
 
 ## Usage
