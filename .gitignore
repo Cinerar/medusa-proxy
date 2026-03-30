@@ -7,3 +7,9 @@
 proxy-list.txt
 requirements.txt
 docs/
+
+# User-specific configuration files
+docker-compose.yaml
+bypass.lst
+bridges.lst
+bridges-only.txt

@@ -1,0 +1,39 @@
+# Sample Bypass List for Direct-First Proxy
+# Copy this file to bypass.lst and customize for your needs
+#
+# Hosts in this list will ALWAYS use direct connection (never go through Tor)
+#
+# Supported formats:
+#   - Exact hostname: localhost, api.example.com
+#   - Domain suffix: .example.com (matches sub.example.com)
+#   - IP address: 127.0.0.1
+#   - CIDR range: 192.168.0.0/16, 10.0.0.0/8
+#
+# Lines starting with # are comments
+
+# =============================================================================
+# Local services
+# =============================================================================
+localhost
+127.0.0.1
+
+# =============================================================================
+# Private networks (RFC 1918)
+# =============================================================================
+192.168.0.0/16    # Private network (home/office)
+10.0.0.0/8        # Private network (enterprise)
+172.16.0.0/12     # Private network (enterprise)
+
+# =============================================================================
+# Example: Trusted APIs (uncomment and customize)
+# =============================================================================
+# api.telegram.org
+# api.openai.com
+# .internal.company.com
+
+# =============================================================================
+# Example: Internal services (uncomment and customize)
+# =============================================================================
+# internal-api.local
+# .local
+# 192.168.1.0/24

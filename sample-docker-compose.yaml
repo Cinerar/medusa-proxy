@@ -47,18 +47,78 @@ services:
     - ENABLE_WEB_UI=1
     # Port for web UI (default: 14789)
     - WEB_UI_PORT=14789
+    # ==========================================================================
+    # Direct-First Proxy Configuration
+    # ==========================================================================
+    # This proxy can operate in two modes:
+    #
+    # Mode 1: Direct-First (MAX_FAILURES >= 0)
+    #   - Try direct connection first
+    #   - After N failures, switch to Tor
+    #   - Good for: reducing Tor load for mostly-working connections
+    #
+    # Mode 2: Tor-First (MAX_FAILURES = -1)
+    #   - Always use Tor for all requests
+    #   - Except hosts in bypass list (they use direct)
+    #   - Good for: privacy-first, bypassing geo-blocks
+    #
+    # Enable direct-first proxy (0=disabled, 1=enabled)
+    - ENABLE_DIRECT_FIRST_PROXY=0
+    
+    # Port for direct-first proxy (default: 9090)
+    - DIRECT_FIRST_PROXY_PORT=9090
+    
+    # Number of consecutive failures before switching to Tor
+    # Special value -1 = always use Tor (except bypass list)
+    #   -1 = Tor-first mode (all requests go through Tor, except bypass)
+    #    0 = Switch to Tor immediately after first failure
+    #    2 = Default: switch after 2 consecutive failures
+    - DIRECT_FIRST_MAX_FAILURES=2
+    
+    # Request timeout in seconds (default: 30)
+    - DIRECT_FIRST_TIMEOUT=30
+    
+    # HAProxy port for Tor routing (default: 1080)
+    - DIRECT_FIRST_HAPROXY_PORT=1080
+    
+    # Bypass list - hosts that should ALWAYS use direct connection
+    # These hosts will NEVER go through Tor, regardless of mode
+    #
+    # Supported formats:
+    #   - Exact hostname: localhost, api.example.com
+    #   - Domain suffix: .example.com (matches sub.example.com)
+    #   - IP address: 127.0.0.1
+    #   - CIDR range: 192.168.0.0/16, 10.0.0.0/8
+    #
+    # Can be set via:
+    #   1. DIRECT_FIRST_BYPASS_FILE (takes precedence)
+    #   2. DIRECT_FIRST_BYPASS (comma-separated)
+    
+    # Comma-separated bypass list (alternative to file)
+    # Examples: "localhost,127.0.0.1,192.168.0.0/16,.internal.example.com"
+    # Default: empty (use file or no bypass)
+    - DIRECT_FIRST_BYPASS=
+    
+    # Path to file containing bypass list (one entry per line)
+    # Takes precedence over DIRECT_FIRST_BYPASS
+    # See sample-bypass.lst for example format
+    # - DIRECT_FIRST_BYPASS_FILE=/bypass.lst
 
-    container_name: medusa-proxy
-    volumes:
+  container_name: medusa-proxy
+  volumes:
     - ./bridges.lst:/bridges.lst:ro
-    restart: no
-    ports:
+    # Bypass list for direct-first proxy (uncomment to enable)
+    # - ./bypass.lst:/bypass.lst:ro
+  restart: unless-stopped
+  ports:
     - '8888:8888'    # HTTP proxy (balanced across all Tor instances)
     - '1080:1080'    # SOCKS proxy (HAProxy)
     - '2090:2090'    # HAProxy stats
     - '8800:8800' # Proxy list HTTP server
     # Web UI for monitoring (only needed if ENABLE_WEB_UI=1)
     - '14789:14789' # Web UI
+    # Direct-first proxy (only needed if ENABLE_DIRECT_FIRST_PROXY=1)
+    - '9090:9090' # Direct-first proxy (tries direct, falls back to Tor)
     # Individual proxy endpoints (only needed if ENABLE_INDIVIDUAL_PROXIES=1)
     # Uncomment and adjust based on your TORS count
     # - '8890:8890' # Individual proxy -> Tor instance #1 (fixed IP)
