@@ -66,11 +66,79 @@ Notes:
 
 ## Ports
 
-- 1080 — HAProxy port
+- 1080 — HAProxy port (SOCKS proxy, load balanced)
 - 2090 — HAProxy statistics port
-- 8888 — Privoxy port
+- 8888 — Privoxy port (HTTP proxy, balanced across Tor)
+- 8890+ — Individual proxy ports (when `ENABLE_INDIVIDUAL_PROXIES=1`)
 - 9090 — Direct-first proxy port (when `ENABLE_DIRECT_FIRST_PROXY=1`)
 - 14789 — Web UI port (when `ENABLE_WEB_UI=1`)
+
+## Direct-First Proxy
+
+The Direct-First Proxy (port 9090) is a smart HTTP proxy that can operate in two modes:
+
+### Mode 1: Direct-First (default, `MAX_FAILURES >= 0`)
+- Try direct connection first
+- After N consecutive failures, switch to Tor
+- Good for: reducing Tor load for mostly-working connections
+
+### Mode 2: Tor-First (`MAX_FAILURES = -1`)
+- Always use Tor for all requests
+- Except hosts in bypass list (they use direct)
+- Good for: privacy-first, bypassing geo-blocks
+
+### Bypass List
+
+Hosts in the bypass list will **always** use direct connection, never Tor.
+
+**Supported formats:**
+- Exact hostname: `localhost`, `api.example.com`
+- Domain suffix: `.example.com` (matches `sub.example.com`)
+- IP address: `127.0.0.1`
+- CIDR range: `192.168.0.0/16`, `10.0.0.0/8`
+
+**Example `bypass.lst`:**
+```
+# Local services
+localhost
+127.0.0.1
+
+# Private networks
+192.168.0.0/16
+10.0.0.0/8
+
+# Docker host access
+host.docker.internal
+```
+
+### Configuration Example
+
+```yaml
+environment:
+  # Enable Direct-First proxy
+  - ENABLE_DIRECT_FIRST_PROXY=1
+  
+  # -1 = Tor-first mode (all through Tor except bypass)
+  #  2 = Direct-first mode (switch to Tor after 2 failures)
+  - DIRECT_FIRST_MAX_FAILURES=-1
+  
+  # Bypass list file
+  - DIRECT_FIRST_BYPASS_FILE=/bypass.lst
+
+volumes:
+  - ./bypass.lst:/bypass.lst:ro
+```
+
+## Individual Proxies
+
+Individual proxies provide fixed IP routing - each Tor instance gets its own HTTP proxy port. This is useful when you need consistent IP addresses for specific tasks.
+
+- Port 8890 → Tor instance #1
+- Port 8891 → Tor instance #2
+- Port 8892 → Tor instance #3
+- ... (one port per Tor instance)
+
+Enable with `ENABLE_INDIVIDUAL_PROXIES=1`.
 
 ## Usage
 
