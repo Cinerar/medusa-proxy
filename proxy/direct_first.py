@@ -582,7 +582,8 @@ class FallbackProxy(Service):
         self.bypass_list = bypass_list or BypassList()
 
         # State
-        self._direct_mode = True
+        # If max_failures < 0, start in Tor mode (always use Tor except bypass)
+        self._direct_mode = max_failures >= 0
         self._failure_count = 0
         self._lock = threading.Lock()
 
