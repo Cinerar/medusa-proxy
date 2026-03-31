@@ -238,7 +238,7 @@ def main():
         direct_first_proxy = None
         if ENABLE_DIRECT_FIRST_PROXY:
             try:
-                from proxy.fallback import FallbackProxy, BypassList
+                from proxy.direct_first import FallbackProxy, BypassList
     
                 # Create and populate bypass list
                 bypass_list = BypassList()
