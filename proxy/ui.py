@@ -129,17 +129,20 @@ class SplitTerminalUI:
         summary = self.status_manager.get_summary(self.heads, self.tors)
         statuses = self.status_manager.cache.get_all()
         log_messages = get_log_buffer().get_messages()
+        proxy_endpoints = self.status_manager.get_proxy_endpoints(self.heads, self.tors)
 
         # Calculate layout
         terminal_height = self._get_terminal_height()
         header_lines = 2
+        proxy_endpoints_lines = 1 + len(proxy_endpoints)  # header + endpoints
         table_header_lines = 1
         status_lines = max(len(statuses), self.tors)  # Always show all expected rows
         log_header_lines = 2
-        separator_lines = 2
+        separator_lines = 3  # Increased for proxy endpoints separator
 
         # Calculate available space for logs
-        used_lines = header_lines + table_header_lines + status_lines + log_header_lines + separator_lines
+        used_lines = (header_lines + proxy_endpoints_lines + table_header_lines +
+                      status_lines + log_header_lines + separator_lines)
         available_log_lines = max(5, terminal_height - used_lines)
 
         # Build output using cursor positioning for each line
@@ -153,6 +156,20 @@ class SplitTerminalUI:
         # Header (row 1-2)
         output.append(ANSI.move(row, 1) + ANSI.CLEAR_LINE + self._render_header(summary))
         row += 1
+        output.append(ANSI.move(row, 1) + ANSI.CLEAR_LINE + ANSI.CYAN + "─" * 78 + ANSI.RESET)
+        row += 1
+
+        # Proxy Endpoints section
+        output.append(ANSI.move(row, 1) + ANSI.CLEAR_LINE + ANSI.BOLD +
+                      f"{'Type':<14} {'Port':<10} {'Status':<10} {'Details':<40}" +
+                      ANSI.RESET)
+        row += 1
+        for endpoint in proxy_endpoints:
+            output.append(ANSI.move(row, 1) + ANSI.CLEAR_LINE +
+                          self._render_proxy_endpoint_row(endpoint))
+            row += 1
+
+        # Separator
         output.append(ANSI.move(row, 1) + ANSI.CLEAR_LINE + ANSI.CYAN + "─" * 78 + ANSI.RESET)
         row += 1
 
@@ -214,6 +231,26 @@ class SplitTerminalUI:
             f"Heads: {summary.heads} | Tors: {summary.tors} | "
             f"Working: {ANSI.GREEN}{summary.working_count}{ANSI.RESET}/{summary.total_count} │ "
             f"Next rotation: {summary.next_rotation}"
+        )
+
+    def _render_proxy_endpoint_row(self, endpoint) -> str:
+        """Render a single proxy endpoint row."""
+        # Choose color based on status
+        if endpoint.status in ("active", "direct"):
+            color = ANSI.GREEN
+            icon = "✓"
+        elif endpoint.status == "tor":
+            color = ANSI.YELLOW
+            icon = "⟳"
+        else:
+            color = ANSI.RED
+            icon = "✗"
+
+        return (
+            f"{endpoint.proxy_type:<14} "
+            f"{str(endpoint.port):<10} "
+            f"{color}{icon} {endpoint.status.upper():<8}{ANSI.RESET} "
+            f"{endpoint.details:<40}"
         )
 
     def _render_status_row(self, status: TorStatus) -> str:

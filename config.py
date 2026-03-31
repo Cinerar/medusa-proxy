@@ -1,7 +1,7 @@
 import os
 from datetime import timedelta
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 
 # ============================================================================
 # Time Parsing Utilities

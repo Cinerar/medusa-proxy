@@ -1,0 +1,18 @@
+services:
+  medusa-proxy:
+    image: datawookie/medusa-proxy:latest
+    container_name: medusa-proxy
+    environment:
+      - HEADS=1
+      - TORS=7
+      - TOR_BRIDGES_FILE=/bridges.lst
+      - PROXY_CHECK_INTERVAL="15m"
+      - TOR_EXIT_NODES="de,nl,fi,se,fr"
+    volumes:
+      - ./bridges-only.txt:/bridges.lst:ro
+    ports:
+      - "8888:8888"      # HTTP proxy (head 0)
+      - "1080:1080"      # SOCKS proxy (HAProxy)
+      - "2090:2090"      # HAProxy stats
+      - "8800:8800"      # 
+    restart: unless-stopped

@@ -8,7 +8,13 @@ import json
 import time
 from flask import Response, render_template, jsonify
 
-from proxy.status import TorStatus, StatusSummary
+from proxy.status import (
+    TorStatus,
+    StatusSummary,
+    ProxyEndpointStatus,
+    DirectFirstStatus,
+    IndividualProxyStatus,
+)
 
 
 def _tor_status_to_dict(status: TorStatus) -> dict:
@@ -38,6 +44,42 @@ def _status_summary_to_dict(summary: StatusSummary) -> dict:
         "total_count": summary.total_count,
         "next_rotation": summary.next_rotation,
         "last_check": summary.last_check,
+    }
+
+
+def _proxy_endpoint_to_dict(endpoint: ProxyEndpointStatus) -> dict:
+    """Convert ProxyEndpointStatus dataclass to dictionary for JSON serialization."""
+    return {
+        "proxy_type": endpoint.proxy_type,
+        "port": endpoint.port,
+        "status": endpoint.status,
+        "details": endpoint.details,
+    }
+
+
+def _direct_first_status_to_dict(status: DirectFirstStatus) -> dict:
+    """Convert DirectFirstStatus dataclass to dictionary for JSON serialization."""
+    return {
+        "enabled": status.enabled,
+        "port": status.port,
+        "mode": status.mode,
+        "failure_count": status.failure_count,
+        "max_failures": status.max_failures,
+        "bypass_count": status.bypass_count,
+        "requests_total": status.requests_total,
+        "requests_direct": status.requests_direct,
+        "requests_tor": status.requests_tor,
+    }
+
+
+def _individual_proxy_to_dict(status: IndividualProxyStatus) -> dict:
+    """Convert IndividualProxyStatus dataclass to dictionary for JSON serialization."""
+    return {
+        "port": status.port,
+        "tor_port": status.tor_port,
+        "status": status.status,
+        "ip": status.ip,
+        "location": status.location,
     }
 
 
@@ -78,14 +120,21 @@ def register_routes(app):
                         app.config["HEADS"],
                         app.config["TORS"],
                     )
-    
+        
+                    # Get proxy endpoints data
+                    proxy_endpoints = status_manager.get_proxy_endpoints(
+                        app.config["HEADS"],
+                        app.config["TORS"],
+                    )
+        
                     # Get log messages
                     log_messages = log_buffer.get_messages()
-    
+        
                     # Create status hash to detect changes
                     status_data = {
                         "statuses": [_tor_status_to_dict(s) for s in statuses],
                         "summary": _status_summary_to_dict(summary),
+                        "proxy_endpoints": [_proxy_endpoint_to_dict(e) for e in proxy_endpoints],
                     }
                     current_status_hash = hash(json.dumps(status_data, sort_keys=True))
     
@@ -138,11 +187,16 @@ def register_routes(app):
             app.config["HEADS"],
             app.config["TORS"],
         )
+        proxy_endpoints = status_manager.get_proxy_endpoints(
+            app.config["HEADS"],
+            app.config["TORS"],
+        )
 
         return jsonify(
             {
                 "statuses": [_tor_status_to_dict(s) for s in statuses],
                 "summary": _status_summary_to_dict(summary),
+                "proxy_endpoints": [_proxy_endpoint_to_dict(e) for e in proxy_endpoints],
             }
         )
 

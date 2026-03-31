@@ -73,29 +73,68 @@
         .status-section {
             margin-bottom: 20px;
         }
-
+        
         .status-table {
             width: 100%;
             border-collapse: collapse;
             font-size: 14px;
         }
-
+        
         .status-table th,
         .status-table td {
             padding: 10px 8px;
             text-align: left;
             border-bottom: 1px solid var(--border);
         }
-
+        
         .status-table th {
             color: var(--cyan);
             font-weight: bold;
             border-bottom: 2px solid var(--cyan);
         }
-
+        
         .status-table td {
             font-family: 'Courier New', monospace;
         }
+        
+        /* Proxy Endpoints Table */
+        .proxy-endpoints-section {
+            margin-bottom: 20px;
+        }
+        
+        .proxy-endpoints-section h3 {
+            margin: 0 0 10px 0;
+            color: var(--cyan);
+            font-size: 16px;
+        }
+        
+        .proxy-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        
+        .proxy-table th,
+        .proxy-table td {
+            padding: 8px 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .proxy-table th {
+            color: var(--cyan);
+            font-weight: bold;
+            border-bottom: 2px solid var(--cyan);
+        }
+        
+        .proxy-table td {
+            font-family: 'Courier New', monospace;
+        }
+        
+        .proxy-status-active { color: var(--green); }
+        .proxy-status-direct { color: var(--green); }
+        .proxy-status-tor { color: var(--yellow); }
+        .proxy-status-inactive { color: var(--red); }
 
         /* Status colors */
         .status-working { color: var(--green); }
@@ -235,30 +274,53 @@
             </div>
         </div>
 
+        <!-- Proxy Endpoints Table -->
+        <div class="proxy-endpoints-section">
+        <h3>Proxy Endpoints</h3>
+        <table class="proxy-table">
+        <thead>
+        <tr>
+        <th>Type</th>
+        <th>Port</th>
+        <th>Status</th>
+        <th>Details</th>
+        </tr>
+        </thead>
+        <tbody id="proxy-endpoints-body">
+        <tr>
+        <td colspan="4" style="text-align: center; color: var(--dim);">
+        Loading...
+        </td>
+        </tr>
+        </tbody>
+        </table>
+        </div>
+        
         <!-- Status Table -->
         <div class="status-section">
-            <table class="status-table">
-                <thead>
-                    <tr>
-                        <th>Port</th>
-                        <th>Status</th>
-                        <th>IP</th>
-                        <th>Country</th>
-                        <th>City</th>
-                        <th>Uptime</th>
-                        <th>Latency</th>
-                    </tr>
-                </thead>
-                <tbody id="status-body">
-                    <tr>
-                        <td colspan="7" style="text-align: center; color: var(--dim);">
-                            Loading...
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+        <h3>Tor Instances</h3>
+        <table class="status-table">
+        <thead>
+        <tr>
+        <th>Port</th>
+        <th>Status</th>
+        <th>IP</th>
+        <th>Country</th>
+        <th>City</th>
+        <th>Uptime</th>
+        <th>Latency</th>
+        </tr>
+        </thead>
+        <tbody id="status-body">
+        <tr>
+        <td colspan="7" style="text-align: center; color: var(--dim);">
+        Loading...
+        </td>
+        </tr>
+        </tbody>
+        </table>
         </div>
-
+        
         <!-- Log Panel -->
         <div class="log-section">
             <h3>Log Output (<span id="log-count">0</span> lines)</h3>
@@ -299,6 +361,7 @@
                     const data = JSON.parse(e.data);
                     updateHeader(data.summary);
                     updateStatusTable(data.statuses);
+                    updateProxyEndpoints(data.proxy_endpoints);
                 } catch (err) {
                     console.error('Error parsing status:', err);
                 }
@@ -352,7 +415,44 @@
                 </tr>
             `).join('');
         }
-
+        
+        function updateProxyEndpoints(endpoints) {
+            const tbody = document.getElementById('proxy-endpoints-body');
+        
+            if (!endpoints || endpoints.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--dim);">
+                            No proxy endpoints found
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+        
+            tbody.innerHTML = endpoints.map(e => `
+                <tr class="proxy-status-${e.status}">
+                    <td>${e.proxy_type}</td>
+                    <td>${e.port}</td>
+                    <td>
+                        <span class="status-icon">${getProxyStatusIcon(e.status)}</span>
+                        ${e.status}
+                    </td>
+                    <td>${e.details || '---'}</td>
+                </tr>
+            `).join('');
+        }
+        
+        function getProxyStatusIcon(status) {
+            const icons = {
+                'active': '✓',
+                'direct': '✓',
+                'tor': '⟳',
+                'inactive': '✗',
+            };
+            return icons[status] || '?';
+        }
+        
         function updateLogs(logs) {
             const output = document.getElementById('log-output');
             const logCount = document.getElementById('log-count');
