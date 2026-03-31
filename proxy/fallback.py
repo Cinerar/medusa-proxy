@@ -603,7 +603,7 @@ class FallbackProxy(Service):
         # Initialize base class (but don't call start() yet)
         self.port = port
         self.PID = None
-        self.name = "direct-first"
+        # Note: self.name is a property from Service class, returns class name in lowercase
 
         bypass_count = len(self.bypass_list.entries)
         log.info(f"Starting DirectFirstProxy on port {self.port} (bypass: {bypass_count} entries)")

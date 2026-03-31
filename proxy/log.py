@@ -7,7 +7,7 @@ from typing import Callable, Optional
 
 LOG_LEVEL = INFO
 
-__all__ = ["info", "debug", "warning", "get_log_buffer", "LogBufferHandler", "suppress_console_output", "set_log_callback"]
+__all__ = ["info", "debug", "warning", "error", "get_log_buffer", "LogBufferHandler", "suppress_console_output", "set_log_callback"]
 
 # Global log buffer for UI display
 _log_buffer: deque = deque(maxlen=20)
